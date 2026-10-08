@@ -69,8 +69,12 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Slots 0-44 zijn voor items, de onderste rij (45-53) voor de categorie-iconen. */
     private static final int ITEM_SLOTS = 45;
-    private static final int BACK_SLOT = 0;
-    private static final int[] PATH = buildPath();
+    private static final int BACK_SLOT = 45;            // rode knop linksonder
+    private static final int PROGRESS_ICON_SLOT = 1;    // categorie-icoon bovenaan
+    /** De kronkel van level 1 (onder het icoon) tot het laatste level (rechtsboven). 20 plekken. */
+    private static final int[] PROGRESS_PATH = {
+            10, 19, 28, 37, 38, 39, 30, 21, 12, 13,
+            14, 23, 32, 41, 42, 43, 34, 25, 16, 7};
 
     /** Items die nooit verkocht kunnen worden (niet verkrijgbaar of met data). */
     private static final Set<String> BLOCKED = Set.of(
@@ -145,17 +149,6 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private record Listed(ItemStack item, double price) { }
 
-    /** De "kronkel": rij 1 naar rechts, bocht, rij 3 naar links, bocht, rij 5 naar rechts. */
-    private static int[] buildPath() {
-        List<Integer> l = new ArrayList<>();
-        for (int s = 9; s <= 17; s++) l.add(s);
-        l.add(26);
-        for (int s = 35; s >= 27; s--) l.add(s);
-        l.add(36);
-        for (int s = 45; s <= 53; s++) l.add(s);
-        return l.stream().mapToInt(Integer::intValue).toArray();
-    }
-
     // ------------------------------------------------------------------ start / stop
 
     @Override
@@ -217,7 +210,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private void loadCategories() {
         List<double[]> base = new ArrayList<>();
-        ConfigurationSection ls = getConfig().getConfigurationSection("category-levels");
+        ConfigurationSection ls = getConfig().getConfigurationSection("progress-levels");
         if (ls != null) {
             for (String k : ls.getKeys(false)) {
                 try { base.add(new double[]{Double.parseDouble(k), ls.getDouble(k)}); } catch (NumberFormatException ignored) { }
@@ -681,11 +674,6 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         p.openInventory(holder.inv);
     }
 
-    private static int cellOf(int levelIndex, int levelCount, int cells) {
-        if (levelCount <= 1) return 0;
-        return levelIndex * (cells - 1) / (levelCount - 1);
-    }
-
     private ItemStack pane(Material mat, Component name, List<Component> lore) {
         ItemStack it = new ItemStack(mat);
         it.editMeta(m -> {
@@ -698,40 +686,55 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private Inventory buildProgress(Player p, int cat) {
         Category c = categories.get(cat);
         ProgressHolder holder = new ProgressHolder(cat);
-        holder.inv = Bukkit.createInventory(holder, 54,
-                MM.deserialize(str("gui.progress-title").replace("{category}", c.name())));
+        holder.inv = Bukkit.createInventory(holder, 54, MM.deserialize(
+                str("gui.progress-menu-title").replace("{category}", MM.stripTags(c.name()))));
+
+        // donkere achtergrond
+        ItemStack filler = pane(Material.GRAY_STAINED_GLASS_PANE, Component.text(" "), null);
+        for (int i = 0; i < 54; i++) holder.inv.setItem(i, filler);
 
         double sold = soldOf(p.getUniqueId())[cat];
         double cap = getConfig().getDouble("max-multiplier", 3.0);
-        List<double[]> lv = c.levels();
-        int cells = PATH.length;
 
-        int reachedLevel = -1;
-        for (int i = 0; i < lv.size(); i++) if (sold >= lv.get(i)[0]) reachedLevel = i;
-        int reachedCell = reachedLevel < 0 ? -1 : cellOf(reachedLevel, lv.size(), cells);
+        // alleen de echte upgrades op de kronkel (x1.0 is het icoon bovenaan)
+        List<double[]> up = new ArrayList<>();
+        for (double[] l : c.levels()) if (l[1] > 1.0) up.add(l);
 
-        // de kronkel zelf: groen tot waar je bent, grijs daarna
-        for (int cell = 0; cell < cells; cell++) {
-            Material mat = cell <= reachedCell ? Material.LIME_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE;
-            holder.inv.setItem(PATH[cell], pane(mat, Component.text(" "), null));
-        }
-
-        // de levels zelf op de kronkel
-        for (int i = 0; i < lv.size(); i++) {
-            double[] l = lv.get(i);
+        double prev = 0;
+        boolean currentMarked = false;
+        for (int i = 0; i < up.size() && i < PROGRESS_PATH.length; i++) {
+            double[] l = up.get(i);
             boolean reached = sold >= l[0];
-            String mult = fmt(Math.min(l[1], cap));
+            boolean current = !reached && !currentMarked;
+            if (current) currentMarked = true;
+
             List<Component> lore = new ArrayList<>();
             lore.add(line("gui.level-from", "{needed}", fmt(l[0])));
-            if (!reached) lore.add(line("gui.level-remaining", "{remaining}", fmt(l[0] - sold)));
-            holder.inv.setItem(PATH[cellOf(i, lv.size(), cells)], pane(
-                    reached ? Material.LIME_STAINED_GLASS_PANE : Material.GRAY_STAINED_GLASS_PANE,
-                    line(reached ? "gui.level-reached" : "gui.level-locked", "{multiplier}", mult),
-                    lore));
+            Material mat;
+            String nameKey;
+            if (reached) {
+                mat = Material.LIME_STAINED_GLASS_PANE;
+                nameKey = "gui.level-reached";
+            } else if (current) {
+                mat = Material.YELLOW_STAINED_GLASS_PANE;
+                nameKey = "gui.level-current";
+                double frac = l[0] > prev ? (sold - prev) / (l[0] - prev) : 0;
+                frac = Math.max(0, Math.min(1, frac));
+                lore.add(line("gui.level-remaining", "{remaining}", fmt(l[0] - sold)));
+                lore.add(line("gui.progress-line", "{bar}", bar(frac),
+                        "{percent}", String.valueOf((int) Math.floor(frac * 100))));
+            } else {
+                mat = Material.LIGHT_GRAY_STAINED_GLASS_PANE;
+                nameKey = "gui.level-locked";
+                lore.add(line("gui.level-remaining", "{remaining}", fmt(l[0] - sold)));
+            }
+            holder.inv.setItem(PROGRESS_PATH[i], pane(mat,
+                    line(nameKey, "{multiplier}", fmt(Math.min(l[1], cap))), lore));
+            prev = l[0];
         }
 
-        holder.inv.setItem(4, categoryIcon(p, cat, "gui.items-click-line"));
-        holder.inv.setItem(BACK_SLOT, pane(Material.ARROW, line("gui.back"), null));
+        holder.inv.setItem(PROGRESS_ICON_SLOT, categoryIcon(p, cat, "gui.items-click-line"));
+        holder.inv.setItem(BACK_SLOT, pane(Material.RED_STAINED_GLASS_PANE, line("gui.back"), null));
         return holder.inv;
     }
 
@@ -884,7 +887,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 ItemStack[] items = stash.remove(id);
                 switching.add(id);
                 Bukkit.getScheduler().runTask(this, () -> openSell(player, items));
-            } else if (e.getRawSlot() == 4) {
+            } else if (e.getRawSlot() == PROGRESS_ICON_SLOT) {
                 switchMenu(player, () -> buildItems(player, ph.category, 0, false));
             }
             return;

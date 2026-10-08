@@ -115,6 +115,12 @@ enchanted-books:
     breach: 80
     wind_burst: 100
 
+# ---- Items met enchants (zwaarden, armor, tools, bogen, enz.) ----
+# Prijs = basisprijs + (som van prijs per level x level, uit de lijst hierboven) x factor.
+# 1.0 = een enchant is op een item evenveel waard als op een boek, 0.5 = de helft.
+enchanted-items:
+  factor: 0.75
+
 # ---- Potions ----
 # Prijs van de basis-potion. "long_" (verlengd) en "strong_" (II) krijgen een extra factor.
 potions:

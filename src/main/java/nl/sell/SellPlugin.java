@@ -499,9 +499,15 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (base == null || base <= 0) return -1;
 
         double factor = 1.0;
+        double enchantBonus = 0;
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
-            if (meta.hasDisplayName() || meta.hasLore() || meta.hasEnchants()) return -1;
+            if (meta.hasDisplayName() || meta.hasLore()) return -1;
+            if (meta.hasEnchants()) {
+                // enchants maken het item meer waard, afhankelijk van enchant en level
+                enchantBonus = enchantValue(meta.getEnchants())
+                        * getConfig().getDouble("enchanted-items.factor", 0.75);
+            }
             if (meta instanceof PotionMeta || meta instanceof EnchantmentStorageMeta
                     || meta instanceof BookMeta || meta instanceof MapMeta || meta instanceof SkullMeta) return -1;
             if (full) {
@@ -514,7 +520,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 factor = Math.max(0.05, 1.0 - (double) d.getDamage() / max);
             }
         }
-        return base * priceScale * factor;
+        return (base * factor + enchantBonus) * priceScale;
     }
 
     private double enchantedBookPrice(ItemStack item) {
@@ -522,13 +528,18 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (esm.hasDisplayName() || esm.hasLore()) return -1;
         Map<Enchantment, Integer> stored = esm.getStoredEnchants();
         if (stored.isEmpty()) return -1;
+        return enchantValue(stored) * priceScale;
+    }
+
+    /** Waarde van een set enchants: prijs per level van elke enchant x het level, opgeteld. */
+    private double enchantValue(Map<Enchantment, Integer> enchants) {
         double def = getConfig().getDouble("enchanted-books.default-per-level", 50);
         double total = 0;
-        for (Map.Entry<Enchantment, Integer> e : stored.entrySet()) {
+        for (Map.Entry<Enchantment, Integer> e : enchants.entrySet()) {
             String key = e.getKey().getKey().getKey().toLowerCase(Locale.ROOT);
             total += enchantPrices.getOrDefault(key, def) * e.getValue();
         }
-        return total * priceScale;
+        return total;
     }
 
     private double potionPrice(ItemStack item) {

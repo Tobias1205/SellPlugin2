@@ -182,7 +182,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         SellPlaceholderExpansion.tryRegister(this);
 
         for (Player p : Bukkit.getOnlinePlayers()) refreshPlayer(p);
-        getServer().getScheduler().runTaskTimer(this, this::refreshAll, 200L, 600L);
+        getServer().getScheduler().runTaskTimer(this, () -> refreshAll(), 200L, 600L);
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> { if (dirty) saveData(); }, 1200L, 6000L);
     }
 
@@ -898,7 +898,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             } else if (raw == 53 && ih.hasNext) {
                 switchMenu(player, () -> rebuild(player, ih, ih.page + 1));
             } else if (raw == 49) {
-                if (ih.query != null) Bukkit.getScheduler().runTask(this, player::closeInventory);
+                if (ih.query != null) Bukkit.getScheduler().runTask(this, () -> player.closeInventory());
                 else switchMenu(player, () -> ih.worthMode ? buildWorthHome(player) : buildProgress(player, ih.category));
             }
             return;

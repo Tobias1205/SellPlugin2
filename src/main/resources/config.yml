@@ -177,31 +177,58 @@ worth-lore:
   enabled: true
   format: "<!italic><gray>Worth <green>${price}"
 
+# Alle teksten in de menu's worden automatisch in kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) getoond.
+# Kleurenschema: titels dark_gray, labels gray, waardes green, acties yellow.
+history:
+  max-entries: 200
+  date-format: "dd-MM HH:mm"
+
 gui:
-  worth-title: "<dark_gray>Item prices"
-  search-title: "<dark_gray>Zoeken: <white>{query} <gray>({page}/{pages})"
-  close: "<!italic><yellow>Sluiten"
-  sell-title: "<dark_gray>Sell"
-  progress-menu-title: "<dark_gray>{category} Progress"
-  level-current: "<!italic><yellow>x{multiplier} <gray>(bezig)"
+  sell-title: "<dark_gray>sell"
+  worth-title: "<dark_gray>item prices"
+  progress-menu-title: "<dark_gray>{category} <dark_gray>progress"
+  items-title: "<dark_gray>{category} <dark_gray>items ({page}/{pages})"
+  worth-items-title: "<dark_gray>{category} <dark_gray>prices ({page}/{pages})"
+  search-title: "<dark_gray>search: {query} ({page}/{pages})"
+  history-title: "<dark_gray>sell history ({page}/{pages})"
+
+  # categorie-icoon
   multiplier-line: "<!italic><gray>Multiplier: <green>x{multiplier}"
-  sold-line: "<!italic><gray>Verkocht: <white>${sold}"
-  next-line: "<!italic><gray>Volgend level: <yellow>x{next}</yellow> bij <white>${needed}"
-  max-line: "<!italic><gold>Maximaal level bereikt!"
+  sold-line: "<!italic><gray>Verkocht: <green>${sold}"
+  next-line: "<!italic><gray>Volgend level: <green>x{next} <gray>bij <green>${needed}"
+  max-line: "<!italic><green>Maximaal level bereikt!"
   progress-line: "<!italic>{bar} <white>{percent}%"
   click-line: "<!italic><yellow>Klik voor het overzicht"
   items-click-line: "<!italic><yellow>Klik om alle items te zien"
-  items-title: "<dark_gray>{category} <gray>- items ({page}/{pages})"
-  worth-level: "<!italic><gray>Waarde: <green>${price}</green> <dark_gray>(per level)"
-  potion-note: "<!italic><dark_gray>Verlengd, versterkt en splash zijn meer waard"
+
+  # progress menu
+  level-reached: "<!italic><green>x{multiplier} behaald"
+  level-current: "<!italic><yellow>x{multiplier} <gray>(bezig)"
+  level-locked: "<!italic><gray>x{multiplier}"
+  level-from: "<!italic><gray>Vanaf <green>${needed} <gray>verkocht"
+  level-remaining: "<!italic><gray>Nog <green>${remaining} <gray>te gaan"
+
+  # knoppen
+  back: "<!italic><red>Terug"
+  back-overview: "<!italic><red>Terug"
+  back-worth: "<!italic><red>Terug"
+  close: "<!italic><red>Sluiten"
   prev: "<!italic><yellow>Vorige pagina"
   next: "<!italic><yellow>Volgende pagina"
-  back-overview: "<!italic><yellow>Terug naar overzicht"
-  level-reached: "<!italic><green>x{multiplier} behaald"
-  level-locked: "<!italic><gray>x{multiplier}"
-  level-from: "<!italic><gray>Vanaf <white>${needed}</white> verkocht"
-  level-remaining: "<!italic><gray>Nog <yellow>${remaining}</yellow> te gaan"
-  back: "<!italic><yellow>Terug naar /sell"
+  page-info: "<!italic><gray>Pagina <white>{page}<gray>/<white>{pages}"
+  potion-note: "<!italic><dark_gray>Verlengd, versterkt en splash zijn meer waard"
+
+  # sell history
+  history-entry-name: "<!italic><yellow>#{number} <dark_gray>- <gray>{date}"
+  history-money: "<!italic><gray>Verdiend: <green>${money}"
+  history-items: "<!italic><gray>Items: <white>{items}"
+  history-mult: "<!italic><gray>Multiplier: <green>x{multiplier}"
+  history-top-header: "<!italic><gray>Meest waard:"
+  history-top-line: "<!italic><dark_gray>- <white>{count}x <gray>{item}"
+  history-summary-name: "<!italic><yellow>Totaal"
+  history-summary-total: "<!italic><gray>Totaal verdiend: <green>${money}"
+  history-summary-sales: "<!italic><gray>Aantal verkopen: <white>{sales}"
+  history-empty: "<!italic><gray>Nog niets verkocht"
 
 messages:
   sold: "<green>Je hebt <white>{items}</white> items verkocht voor <yellow>${money}</yellow> <gray>(x{multiplier})"

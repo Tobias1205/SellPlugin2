@@ -50,6 +50,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -61,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
@@ -69,6 +73,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Slots 0-44 zijn voor items, de onderste rij (45-53) voor de categorie-iconen. */
     private static final int ITEM_SLOTS = 45;
+    private static final int NAV_BACK = 45;
+    private static final int NAV_PREV = 48;
+    private static final int NAV_INFO = 49;
+    private static final int NAV_NEXT = 50;
     private static final int BACK_SLOT = 45;            // rode knop linksonder
     private static final int PROGRESS_ICON_SLOT = 1;    // categorie-icoon bovenaan
     /** De kronkel van level 1 (onder het icoon) tot het laatste level (rechtsboven). 20 plekken. */
@@ -105,6 +113,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private final Map<UUID, ItemStack[]> stash = new ConcurrentHashMap<>();
     private final Set<UUID> switching = ConcurrentHashMap.newKeySet();
     private volatile boolean dirty = false;
+    private final Map<UUID, List<SaleEntry>> history = new ConcurrentHashMap<>();
+    private File historyFile;
 
     private File dataFile;
     private Economy economy;
@@ -149,6 +159,17 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private record Listed(ItemStack item, double price) { }
 
+    /** Eén verkoop in de geschiedenis. top = "MATERIAL:aantal" van de meest waardevolle items. */
+    private record SaleEntry(long time, double money, int items, double mult, List<String> top) { }
+
+    private static class HistoryHolder implements InventoryHolder {
+        private Inventory inv;
+        private final int page;
+        private final boolean hasNext;
+        HistoryHolder(int page, boolean hasNext) { this.page = page; this.hasNext = hasNext; }
+        @Override public @NotNull Inventory getInventory() { return inv; }
+    }
+
     // ------------------------------------------------------------------ start / stop
 
     @Override
@@ -163,6 +184,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         economy = rsp.getProvider();
 
         dataFile = new File(getDataFolder(), "data.yml");
+        historyFile = new File(getDataFolder(), "history.yml");
+        loadHistory();
         loadCategories();
         loadData();
         loadPrices();
@@ -232,7 +255,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 double scale = Math.max(0.0001, c.getDouble("scale", 1.0));
                 List<double[]> lv = new ArrayList<>();
                 for (double[] b : base) lv.add(new double[]{(double) Math.round(b[0] * scale), b[1]});
-                list.add(new Category(key, color + MM.stripTags(c.getString("name", key)), icon, lv));
+                list.add(new Category(key, color + sc(MM.stripTags(c.getString("name", key))), icon, lv));
             }
         }
         if (list.isEmpty()) list.add(new Category("all", "<green>Alles", Material.CHEST, base));
@@ -273,7 +296,53 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
     }
 
+    private void loadHistory() {
+        history.clear();
+        YamlConfiguration y = YamlConfiguration.loadConfiguration(historyFile);
+        ConfigurationSection root = y.getConfigurationSection("history");
+        if (root == null) return;
+        for (String k : root.getKeys(false)) {
+            UUID id;
+            try { id = UUID.fromString(k); } catch (IllegalArgumentException e) { continue; }
+            List<SaleEntry> list = new CopyOnWriteArrayList<>();
+            for (Map<?, ?> m : root.getMapList(k)) {
+                try {
+                    List<String> top = new ArrayList<>();
+                    Object t = m.get("top");
+                    if (t instanceof List<?> l) for (Object o : l) top.add(String.valueOf(o));
+                    list.add(new SaleEntry(((Number) m.get("t")).longValue(), ((Number) m.get("m")).doubleValue(),
+                            ((Number) m.get("i")).intValue(), ((Number) m.get("x")).doubleValue(), top));
+                } catch (Exception ignored) { }
+            }
+            if (!list.isEmpty()) history.put(id, list);
+        }
+    }
+
+    private synchronized void saveHistory() {
+        YamlConfiguration y = new YamlConfiguration();
+        for (Map.Entry<UUID, List<SaleEntry>> e : history.entrySet()) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (SaleEntry se : e.getValue()) {
+                Map<String, Object> m = new java.util.LinkedHashMap<>();
+                m.put("t", se.time());
+                m.put("m", se.money());
+                m.put("i", se.items());
+                m.put("x", se.mult());
+                m.put("top", se.top());
+                out.add(m);
+            }
+            y.set("history." + e.getKey(), out);
+        }
+        try {
+            getDataFolder().mkdirs();
+            y.save(historyFile);
+        } catch (IOException ex) {
+            getLogger().warning("Kon history.yml niet opslaan: " + ex.getMessage());
+        }
+    }
+
     private synchronized void saveData() {
+        saveHistory();
         YamlConfiguration y = new YamlConfiguration();
         List<Category> cats = categories;
         for (Map.Entry<UUID, double[]> e : soldTotals.entrySet()) {
@@ -511,6 +580,29 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         return (base * factor + enchantBonus) * priceScale;
     }
 
+    private void tally(ItemStack item, Map<Material, double[]> map, int depth) {
+        double unit = unitPrice(item, true);
+        double[] a = map.computeIfAbsent(item.getType(), k -> new double[2]);
+        a[0] += item.getAmount();
+        a[1] += Math.max(0, unit) * item.getAmount();
+        if (depth > 3) return;
+        for (ItemStack in : innerItems(item)) tally(in, map, depth + 1);
+    }
+
+    private void recordSale(UUID id, double money, int items, double mult, Map<Material, double[]> tallied) {
+        List<Map.Entry<Material, double[]>> sorted = new ArrayList<>(tallied.entrySet());
+        sorted.sort((x, y) -> Double.compare(y.getValue()[1], x.getValue()[1]));
+        List<String> top = new ArrayList<>();
+        for (int i = 0; i < sorted.size() && i < 5; i++) {
+            top.add(sorted.get(i).getKey().name() + ":" + (int) sorted.get(i).getValue()[0]);
+        }
+        List<SaleEntry> list = history.computeIfAbsent(id, k -> new CopyOnWriteArrayList<>());
+        list.add(0, new SaleEntry(System.currentTimeMillis(), money, items, mult, top));
+        int max = Math.max(10, getConfig().getInt("history.max-entries", 200));
+        while (list.size() > max) list.remove(list.size() - 1);
+        dirty = true;
+    }
+
     /** Items die in een shulker box of bundle zitten (leeg als het geen container is). */
     private List<ItemStack> innerItems(ItemStack item) {
         List<ItemStack> out = new ArrayList<>();
@@ -622,7 +714,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     }
 
     Component loreLine(double total) {
-        String f = getConfig().getString("worth-lore.format", "<!italic><gray>Worth <green>${price}");
+        String f = scMini(getConfig().getString("worth-lore.format", "<!italic><gray>Worth <green>${price}"));
         return MM.deserialize(f.replace("{price}", fmt(total)));
     }
 
@@ -645,12 +737,53 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     // ------------------------------------------------------------------ menu's
 
+    private static final String SC_FROM = "abcdefghijklmnopqrstuvwxyz";
+    private static final String SC_TO = "ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘǫʀꜱᴛᴜᴠᴡxʏᴢ";
+
+    /** Gewone tekst naar kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ). */
+    static String sc(String text) {
+        StringBuilder sb = new StringBuilder(text.length());
+        for (char ch : text.toCharArray()) {
+            int i = SC_FROM.indexOf(Character.toLowerCase(ch));
+            sb.append(i >= 0 ? SC_TO.charAt(i) : ch);
+        }
+        return sb.toString();
+    }
+
+    /** Zet alleen de zichtbare tekst om; <tags> en {placeholders} blijven ongemoeid. */
+    static String scMini(String text) {
+        StringBuilder sb = new StringBuilder(text.length());
+        StringBuilder chunk = new StringBuilder();
+        char close = 0;
+        for (char ch : text.toCharArray()) {
+            if (close != 0) {
+                sb.append(ch);
+                if (ch == close) close = 0;
+            } else if (ch == '<' || ch == '{') {
+                sb.append(sc(chunk.toString()));
+                chunk.setLength(0);
+                sb.append(ch);
+                close = ch == '<' ? '>' : '}';
+            } else {
+                chunk.append(ch);
+            }
+        }
+        sb.append(sc(chunk.toString()));
+        return sb.toString();
+    }
+
+    private Component title(String path, String... replacements) {
+        String s = scMini(str(path));
+        for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
+        return MM.deserialize(s);
+    }
+
     private String str(String path) {
         return getConfig().getString(path, "");
     }
 
     private Component line(String path, String... replacements) {
-        String s = str(path);
+        String s = scMini(str(path));
         for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
         return MM.deserialize(s);
     }
@@ -695,7 +828,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private void openSell(Player p, ItemStack[] items) {
         SellHolder holder = new SellHolder();
-        holder.inv = Bukkit.createInventory(holder, 54, MM.deserialize(str("gui.sell-title")));
+        holder.inv = Bukkit.createInventory(holder, 54, title("gui.sell-title"));
         for (int i = 0; i < categories.size() && i < 9; i++) {
             holder.inv.setItem(ITEM_SLOTS + i, categoryIcon(p, i, "gui.click-line"));
         }
@@ -717,8 +850,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private Inventory buildProgress(Player p, int cat) {
         Category c = categories.get(cat);
         ProgressHolder holder = new ProgressHolder(cat);
-        holder.inv = Bukkit.createInventory(holder, 54, MM.deserialize(
-                str("gui.progress-menu-title").replace("{category}", MM.stripTags(c.name()))));
+        holder.inv = Bukkit.createInventory(holder, 54,
+                title("gui.progress-menu-title", "{category}", MM.stripTags(c.name())));
 
         // donkere achtergrond
         ItemStack filler = pane(Material.GRAY_STAINED_GLASS_PANE, Component.text(" "), null);
@@ -820,20 +953,27 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         int page = Math.max(0, Math.min(requestedPage, pages - 1));
 
         ItemsHolder holder = new ItemsHolder(cat, page, page < pages - 1, worthMode);
-        String title = str("gui.items-title")
-                .replace("{category}", categories.get(cat).name())
-                .replace("{page}", String.valueOf(page + 1))
-                .replace("{pages}", String.valueOf(pages));
-        holder.inv = Bukkit.createInventory(holder, 54, MM.deserialize(title));
+        holder.inv = Bukkit.createInventory(holder, 54, title(worthMode ? "gui.worth-items-title" : "gui.items-title",
+                "{category}", categories.get(cat).name(),
+                "{page}", String.valueOf(page + 1), "{pages}", String.valueOf(pages)));
 
         for (int i = 0; i < ITEM_SLOTS; i++) {
             int idx = page * ITEM_SLOTS + i;
             if (idx < all.size()) holder.inv.setItem(i, all.get(idx).item());
         }
-        if (page > 0) holder.inv.setItem(45, pane(Material.ARROW, line("gui.prev"), null));
-        holder.inv.setItem(49, pane(Material.ARROW, line("gui.back-overview"), null));
-        if (holder.hasNext) holder.inv.setItem(53, pane(Material.ARROW, line("gui.next"), null));
+        navBar(holder.inv, page, pages, worthMode ? "gui.back-worth" : "gui.back-overview");
         return holder.inv;
+    }
+
+    /** Onderste rij van alle lijst-menu's: terug (rood) links, pijlen en pagina-info in het midden. */
+    private void navBar(Inventory inv, int page, int pages, String backKey) {
+        ItemStack filler = pane(Material.GRAY_STAINED_GLASS_PANE, Component.text(" "), null);
+        for (int i = 45; i < 54; i++) inv.setItem(i, filler);
+        inv.setItem(NAV_BACK, pane(Material.RED_STAINED_GLASS_PANE, line(backKey), null));
+        if (page > 0) inv.setItem(NAV_PREV, pane(Material.ARROW, line("gui.prev"), null));
+        if (page < pages - 1) inv.setItem(NAV_NEXT, pane(Material.ARROW, line("gui.next"), null));
+        inv.setItem(NAV_INFO, pane(Material.PAPER,
+                line("gui.page-info", "{page}", String.valueOf(page + 1), "{pages}", String.valueOf(pages)), null));
     }
 
     private List<Listed> searchItems(Player p, String query) {
@@ -853,18 +993,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         int page = Math.max(0, Math.min(requestedPage, pages - 1));
 
         ItemsHolder holder = new ItemsHolder(-1, page, page < pages - 1, true, query);
-        String title = str("gui.search-title")
-                .replace("{query}", query.replace('_', ' '))
-                .replace("{page}", String.valueOf(page + 1))
-                .replace("{pages}", String.valueOf(pages));
-        holder.inv = Bukkit.createInventory(holder, 54, MM.deserialize(title));
+        holder.inv = Bukkit.createInventory(holder, 54, title("gui.search-title",
+                "{query}", sc(query.replace('_', ' ')),
+                "{page}", String.valueOf(page + 1), "{pages}", String.valueOf(pages)));
         for (int i = 0; i < ITEM_SLOTS; i++) {
             int idx = page * ITEM_SLOTS + i;
             if (idx < all.size()) holder.inv.setItem(i, all.get(idx).item());
         }
-        if (page > 0) holder.inv.setItem(45, pane(Material.ARROW, line("gui.prev"), null));
-        holder.inv.setItem(49, pane(Material.ARROW, line("gui.close"), null));
-        if (holder.hasNext) holder.inv.setItem(53, pane(Material.ARROW, line("gui.next"), null));
+        navBar(holder.inv, page, pages, "gui.close");
         return holder.inv;
     }
 
@@ -872,10 +1008,73 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         return ih.query != null ? buildSearch(p, ih.query, page) : buildItems(p, ih.category, page, ih.worthMode);
     }
 
+    private static String niceName(String material) {
+        return sc(material.toLowerCase(Locale.ROOT).replace('_', ' '));
+    }
+
+    private Inventory buildHistory(Player p, int requestedPage) {
+        List<SaleEntry> all = history.getOrDefault(p.getUniqueId(), List.of());
+        int pages = Math.max(1, (all.size() + ITEM_SLOTS - 1) / ITEM_SLOTS);
+        int page = Math.max(0, Math.min(requestedPage, pages - 1));
+
+        HistoryHolder holder = new HistoryHolder(page, page < pages - 1);
+        holder.inv = Bukkit.createInventory(holder, 54, title("gui.history-title",
+                "{page}", String.valueOf(page + 1), "{pages}", String.valueOf(pages)));
+
+        DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern(getConfig().getString("history.date-format", "dd-MM HH:mm"))
+                .withZone(ZoneId.systemDefault());
+        for (int i = 0; i < ITEM_SLOTS; i++) {
+            int idx = page * ITEM_SLOTS + i;
+            if (idx >= all.size()) break;
+            SaleEntry se = all.get(idx);
+
+            Material icon = Material.PAPER;
+            if (!se.top().isEmpty()) {
+                Material m = Material.matchMaterial(se.top().get(0).split(":")[0]);
+                if (m != null && m.isItem() && !m.isAir()) icon = m;
+            }
+            List<Component> lore = new ArrayList<>();
+            lore.add(line("gui.history-money", "{money}", fmt(se.money())));
+            lore.add(line("gui.history-items", "{items}", String.valueOf(se.items())));
+            lore.add(line("gui.history-mult", "{multiplier}", fmt(se.mult())));
+            if (!se.top().isEmpty()) {
+                lore.add(Component.empty());
+                lore.add(line("gui.history-top-header"));
+                for (String t : se.top()) {
+                    String[] parts = t.split(":");
+                    if (parts.length < 2) continue;
+                    lore.add(line("gui.history-top-line", "{count}", parts[1], "{item}", niceName(parts[0])));
+                }
+            }
+            ItemStack it = new ItemStack(icon);
+            it.editMeta(m -> {
+                m.displayName(line("gui.history-entry-name", "{number}", String.valueOf(all.size() - idx), "{date}",
+                        dateFmt.format(Instant.ofEpochMilli(se.time()))));
+                m.lore(lore);
+                m.addItemFlags(org.bukkit.inventory.ItemFlag.values());
+            });
+            holder.inv.setItem(i, it);
+        }
+
+        navBar(holder.inv, page, pages, "gui.back");
+        double total = 0;
+        for (SaleEntry se : all) total += se.money();
+        holder.inv.setItem(NAV_INFO, pane(Material.GOLD_INGOT, line("gui.history-summary-name"), List.of(
+                line("gui.history-summary-total", "{money}", fmt(total)),
+                line("gui.history-summary-sales", "{sales}", String.valueOf(all.size())),
+                line("gui.page-info", "{page}", String.valueOf(page + 1), "{pages}", String.valueOf(pages)))));
+        if (all.isEmpty()) {
+            holder.inv.setItem(22, pane(Material.BARRIER, line("gui.history-empty"), null));
+        }
+        return holder.inv;
+    }
+
     /** Hoofdmenu van /worth: kies een categorie om alle prijzen te zien. */
     private Inventory buildWorthHome(Player p) {
         WorthHolder holder = new WorthHolder();
-        holder.inv = Bukkit.createInventory(holder, 27, MM.deserialize(str("gui.worth-title")));
+        holder.inv = Bukkit.createInventory(holder, 27, title("gui.worth-title"));
+        ItemStack filler = pane(Material.GRAY_STAINED_GLASS_PANE, Component.text(" "), null);
+        for (int i = 0; i < 27; i++) holder.inv.setItem(i, filler);
         for (int i = 0; i < categories.size() && i < 9; i++) {
             holder.inv.setItem(9 + i, categoryIcon(p, i, "gui.items-click-line"));
         }
@@ -924,6 +1123,21 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             return;
         }
 
+        if (holder instanceof HistoryHolder hh) {
+            e.setCancelled(true);
+            if (e.getClickedInventory() != top) return;
+            int raw = e.getRawSlot();
+            if (raw == NAV_PREV && hh.page > 0) {
+                switchMenu(player, () -> buildHistory(player, hh.page - 1));
+            } else if (raw == NAV_NEXT && hh.hasNext) {
+                switchMenu(player, () -> buildHistory(player, hh.page + 1));
+            } else if (raw == NAV_BACK) {
+                switching.add(player.getUniqueId());
+                Bukkit.getScheduler().runTask(this, () -> openSell(player, null));
+            }
+            return;
+        }
+
         if (holder instanceof WorthHolder) {
             e.setCancelled(true);
             if (e.getClickedInventory() != top) return;
@@ -938,11 +1152,11 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             e.setCancelled(true);
             if (e.getClickedInventory() != top) return;
             int raw = e.getRawSlot();
-            if (raw == 45 && ih.page > 0) {
+            if (raw == NAV_PREV && ih.page > 0) {
                 switchMenu(player, () -> rebuild(player, ih, ih.page - 1));
-            } else if (raw == 53 && ih.hasNext) {
+            } else if (raw == NAV_NEXT && ih.hasNext) {
                 switchMenu(player, () -> rebuild(player, ih, ih.page + 1));
-            } else if (raw == 49) {
+            } else if (raw == NAV_BACK) {
                 if (ih.query != null) Bukkit.getScheduler().runTask(this, () -> player.closeInventory());
                 else switchMenu(player, () -> ih.worthMode ? buildWorthHome(player) : buildProgress(player, ih.category));
             }
@@ -976,7 +1190,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (e.getWhoClicked() instanceof Player dragger) resyncInventory(dragger.getUniqueId());
         Inventory top = e.getView().getTopInventory();
         InventoryHolder holder = top.getHolder();
-        if (holder instanceof ProgressHolder || holder instanceof ItemsHolder || holder instanceof WorthHolder) {
+        if (holder instanceof ProgressHolder || holder instanceof ItemsHolder || holder instanceof WorthHolder
+                || holder instanceof HistoryHolder) {
             e.setCancelled(true);
         } else if (holder instanceof SellHolder) {
             for (int raw : e.getRawSlots()) {
@@ -1045,6 +1260,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
         if (!player.hasPermission("sell.use")) { player.sendMessage(msg("no-permission")); return true; }
 
+        if (sub.equals("history")) {
+            Bukkit.getScheduler().runTask(this, () -> player.openInventory(buildHistory(player, 0)));
+            return true;
+        }
         if (sub.equals("multiplier")) {
             double[] sold = soldOf(player.getUniqueId());
             double[] mult = computeMultipliers(player);
@@ -1157,7 +1376,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             return names;
         }
         if (args.length != 1) return List.of();
-        List<String> out = new ArrayList<>(List.of("worth", "multiplier"));
+        List<String> out = new ArrayList<>(List.of("worth", "multiplier", "history"));
         if (sender.hasPermission("sell.admin")) out.addAll(List.of("reload", "global", "status"));
         out.removeIf(s -> !s.startsWith(args[0].toLowerCase(Locale.ROOT)));
         return out;
@@ -1172,7 +1391,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         UUID id = player.getUniqueId();
 
         resyncInventory(id);
-        if (holder instanceof ProgressHolder || holder instanceof ItemsHolder || holder instanceof WorthHolder) {
+        if (holder instanceof ProgressHolder || holder instanceof ItemsHolder || holder instanceof WorthHolder
+                || holder instanceof HistoryHolder) {
             if (switching.remove(id)) return;   // we wisselen naar een ander menu
             giveBackStash(player);              // menu gesloten: items veilig teruggeven
             return;
@@ -1187,6 +1407,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         double[] base = new double[n];
         int count = 0;
         ItemStack[] contents = event.getInventory().getContents();
+        Map<Material, double[]> tallied = new EnumMap<>(Material.class);
         for (int i = 0; i < ITEM_SLOTS && i < contents.length; i++) {
             ItemStack item = contents[i];
             if (item == null || item.getType().isAir()) continue;
@@ -1196,6 +1417,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 continue;
             }
             for (int c = 0; c < n; c++) base[c] += part[c];
+            tally(item, tallied, 0);
             count += item.getAmount();
             for (ItemStack in : innerItems(item)) count += in.getAmount();
         }
@@ -1221,6 +1443,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         dirty = true;
 
         economy.depositPlayer(player, money);
+        recordSale(id, money, count, money / baseTotal, tallied);
         player.sendMessage(msg("sold",
                 "{items}", String.valueOf(count),
                 "{money}", String.format(Locale.US, "%,.2f", money),

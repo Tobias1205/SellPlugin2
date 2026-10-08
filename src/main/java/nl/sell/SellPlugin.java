@@ -503,17 +503,51 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             }
             if (meta instanceof PotionMeta || meta instanceof EnchantmentStorageMeta
                     || meta instanceof BookMeta || meta instanceof MapMeta || meta instanceof SkullMeta) return -1;
-            if (full) {
-                if (meta instanceof BundleMeta bm && bm.hasItems()) return -1;
-                if (meta instanceof BlockStateMeta bsm && bsm.hasBlockState()
-                        && bsm.getBlockState() instanceof Container c && !c.getInventory().isEmpty()) return -1;
-            }
             int max = item.getType().getMaxDurability();
             if (max > 0 && meta instanceof Damageable d) {
                 factor = Math.max(0.05, 1.0 - (double) d.getDamage() / max);
             }
         }
         return (base * factor + enchantBonus) * priceScale;
+    }
+
+    /** Items die in een shulker box of bundle zitten (leeg als het geen container is). */
+    private List<ItemStack> innerItems(ItemStack item) {
+        List<ItemStack> out = new ArrayList<>();
+        if (!item.hasItemMeta()) return out;
+        ItemMeta meta = item.getItemMeta();
+        if (meta instanceof BlockStateMeta bsm && bsm.hasBlockState()
+                && bsm.getBlockState() instanceof Container c) {
+            for (ItemStack in : c.getInventory().getContents()) {
+                if (in != null && !in.getType().isAir()) out.add(in);
+            }
+        } else if (meta instanceof BundleMeta bm && bm.hasItems()) {
+            out.addAll(bm.getItems());
+        }
+        return out;
+    }
+
+    /**
+     * Telt de waarde van een item PLUS alles wat erin zit op, per categorie (zonder multiplier).
+     * Geeft false terug als het item of iets erin niet verkocht kan worden.
+     */
+    private boolean addValue(ItemStack item, double[] perCat, int depth) {
+        double unit = unitPrice(item, true);
+        if (unit < 0 || depth > 3) return false;
+        perCat[categoryIndex(item.getType())] += unit * item.getAmount();
+        for (ItemStack in : innerItems(item)) {
+            if (!addValue(in, perCat, depth + 1)) return false;
+        }
+        return true;
+    }
+
+    /** Totale waarde (met multipliers) van een stapel inclusief inhoud, of -1 als niet verkoopbaar. */
+    private double stackValue(ItemStack item, double[] mult) {
+        double[] perCat = new double[categories.size()];
+        if (!addValue(item, perCat, 0)) return -1;
+        double total = 0;
+        for (int i = 0; i < perCat.length; i++) total += perCat[i] * (mult != null && i < mult.length ? mult[i] : 1.0);
+        return total;
     }
 
     private double enchantedBookPrice(ItemStack item) {
@@ -582,12 +616,9 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     }
 
     double displayUnitPrice(ItemStack item, UUID id) {
-        double unit = unitPrice(item, false);
-        if (unit < 0) return -1;
-        double[] arr = multiplierCache.get(id);
-        int c = categoryIndex(item.getType());
-        double mult = (arr != null && c < arr.length) ? arr[c] : 1.0;
-        return unit * mult;
+        double total = stackValue(item, multiplierCache.get(id));
+        if (total < 0) return -1;
+        return total / Math.max(1, item.getAmount());
     }
 
     Component loreLine(double total) {
@@ -1056,13 +1087,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (player == null) { sender.sendMessage("Alleen spelers kunnen dit gebruiken."); return true; }
             ItemStack hand = player.getInventory().getItemInMainHand();
             if (hand.getType().isAir()) { player.sendMessage(msg("hold-item")); return true; }
-            double unit = unitPrice(hand, true);
-            if (unit < 0) { player.sendMessage(msg("not-sellable")); return true; }
-            double mult = computeMultipliers(player)[categoryIndex(hand.getType())];
+            double[] mults = computeMultipliers(player);
+            double total = stackValue(hand, mults);
+            if (total < 0) { player.sendMessage(msg("not-sellable")); return true; }
+            double mult = mults[categoryIndex(hand.getType())];
             player.sendMessage(msg("worth-hand",
                     "{item}", hand.getType().name().toLowerCase(Locale.ROOT).replace('_', ' '),
                     "{multiplier}", fmt(mult),
-                    "{stack}", fmt(unit * mult * hand.getAmount())));
+                    "{stack}", fmt(total)));
             return true;
         }
 
@@ -1158,13 +1190,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         for (int i = 0; i < ITEM_SLOTS && i < contents.length; i++) {
             ItemStack item = contents[i];
             if (item == null || item.getType().isAir()) continue;
-            double unit = unitPrice(item, true);
-            if (unit < 0) {
+            double[] part = new double[n];
+            if (!addValue(item, part, 0)) {   // item of iets in de shulker kan niet verkocht worden: alles terug
                 giveBack(player, item);
                 continue;
             }
-            base[categoryIndex(item.getType())] += unit * item.getAmount();
+            for (int c = 0; c < n; c++) base[c] += part[c];
             count += item.getAmount();
+            for (ItemStack in : innerItems(item)) count += in.getAmount();
         }
         event.getInventory().clear();
 

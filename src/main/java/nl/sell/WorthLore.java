@@ -70,6 +70,7 @@ public class WorthLore extends PacketListenerAbstract {
         if (setSlot) {
             WrapperPlayServerSetSlot w = new WrapperPlayServerSetSlot(event);
             if (w.getWindowId() < 0) return; // cursor / speciale vensters
+            if (plugin.skipSlot(uuid, w.getWindowId(), w.getSlot())) return;
             var modified = addLore(w.getItem(), uuid);
             if (modified != null) {
                 w.setItem(modified);
@@ -80,6 +81,7 @@ public class WorthLore extends PacketListenerAbstract {
             List<com.github.retrooper.packetevents.protocol.item.ItemStack> items = new ArrayList<>(w.getItems());
             boolean changed = false;
             for (int i = 0; i < items.size(); i++) {
+                if (plugin.skipSlot(uuid, w.getWindowId(), i)) continue;
                 var modified = addLore(items.get(i), uuid);
                 if (modified != null) {
                     items.set(i, modified);

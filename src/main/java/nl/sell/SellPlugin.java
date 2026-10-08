@@ -113,6 +113,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private final Map<UUID, ItemStack[]> stash = new ConcurrentHashMap<>();
     private final Set<UUID> switching = ConcurrentHashMap.newKeySet();
     private volatile boolean dirty = false;
+    private final Map<UUID, Integer> heldSlot = new ConcurrentHashMap<>();
     private final Map<UUID, List<SaleEntry>> history = new ConcurrentHashMap<>();
     private File historyFile;
 
@@ -197,7 +198,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         setupWorthLore();
         SellPlaceholderExpansion.tryRegister(this);
 
-        for (Player p : Bukkit.getOnlinePlayers()) refreshPlayer(p);
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            heldSlot.put(p.getUniqueId(), p.getInventory().getHeldItemSlot());
+            refreshPlayer(p);
+        }
         getServer().getScheduler().runTaskTimer(this, () -> refreshAll(), 200L, 600L);
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> { if (dirty) saveData(); }, 1200L, 6000L);
     }
@@ -489,6 +493,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent e) {
+        heldSlot.put(e.getPlayer().getUniqueId(), e.getPlayer().getInventory().getHeldItemSlot());
         refreshPlayer(e.getPlayer());
         Bukkit.getScheduler().runTask(this, () -> e.getPlayer().updateInventory());
     }
@@ -500,6 +505,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         switching.remove(p.getUniqueId());
         multiplierCache.remove(p.getUniqueId());
         creative.remove(p.getUniqueId());
+        heldSlot.remove(p.getUniqueId());
     }
 
     @EventHandler
@@ -514,10 +520,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     public void onSwap(PlayerSwapHandItemsEvent e) { resyncInventory(e.getPlayer().getUniqueId()); }
 
     @EventHandler
-    public void onPlace(BlockPlaceEvent e) { resyncInventory(e.getPlayer().getUniqueId()); }
-
-    @EventHandler
-    public void onConsume(PlayerItemConsumeEvent e) { resyncInventory(e.getPlayer().getUniqueId()); }
+    public void onHeld(org.bukkit.event.player.PlayerItemHeldEvent e) {
+        heldSlot.put(e.getPlayer().getUniqueId(), e.getNewSlot());
+        resyncInventory(e.getPlayer().getUniqueId());   // oude en nieuwe vastgehouden slot wisselen van tooltip
+    }
 
     @EventHandler
     public void onGameMode(PlayerGameModeChangeEvent e) {
@@ -701,6 +707,17 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             Player p = Bukkit.getPlayer(id);
             if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
         }, 2L);
+    }
+
+    /**
+     * Het item in je geselecteerde hotbar-slot krijgt geen worth-regel. Verandert de tekst van een
+     * vastgehouden item (bv. door oppakken tijdens hakken), dan reset de client het hakken.
+     */
+    boolean skipSlot(UUID id, int windowId, int slot) {
+        if (!getConfig().getBoolean("worth-lore.hide-on-held-slot", true)) return false;
+        if (windowId != 0) return false;
+        Integer held = heldSlot.get(id);
+        return held != null && slot == 36 + held;
     }
 
     boolean shouldShowLore(UUID id) {

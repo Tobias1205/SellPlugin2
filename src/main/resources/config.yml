@@ -175,9 +175,11 @@ global-multiplier: 1.0
 # Toont de waarde in de tooltip van items in je inventory (heeft PacketEvents nodig)
 worth-lore:
   enabled: true
-  # Geen worth op het item in je geselecteerde hotbar-slot. Voorkomt dat hakken heel even reset
-  # als je tijdens het hakken items oppakt (de tekst van het item verandert dan).
-  hide-on-held-slot: true
+  # Wat er gebeurt met het item in je geselecteerde hotbar-slot terwijl je hakt:
+  #   freeze = worth blijft zichtbaar, de waarde ververst pas als je stopt met hakken (aanbevolen)
+  #   hide   = geen worth op het vastgehouden item
+  #   normal = altijd direct bijwerken (hakken kan heel even resetten bij het oppakken van items)
+  held-slot: freeze
   format: "<!italic><gray>Worth <green>${price}"
 
 # Alle teksten in de menu's worden automatisch in kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) getoond.

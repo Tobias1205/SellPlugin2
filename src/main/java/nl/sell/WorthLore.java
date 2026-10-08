@@ -71,7 +71,7 @@ public class WorthLore extends PacketListenerAbstract {
             WrapperPlayServerSetSlot w = new WrapperPlayServerSetSlot(event);
             if (w.getWindowId() < 0) return; // cursor / speciale vensters
             if (plugin.skipSlot(uuid, w.getWindowId(), w.getSlot())) return;
-            var modified = addLore(w.getItem(), uuid);
+            var modified = addLore(w.getItem(), uuid, w.getWindowId(), w.getSlot());
             if (modified != null) {
                 w.setItem(modified);
                 event.markForReEncode(true);
@@ -82,7 +82,7 @@ public class WorthLore extends PacketListenerAbstract {
             boolean changed = false;
             for (int i = 0; i < items.size(); i++) {
                 if (plugin.skipSlot(uuid, w.getWindowId(), i)) continue;
-                var modified = addLore(items.get(i), uuid);
+                var modified = addLore(items.get(i), uuid, w.getWindowId(), i);
                 if (modified != null) {
                     items.set(i, modified);
                     changed = true;
@@ -96,7 +96,7 @@ public class WorthLore extends PacketListenerAbstract {
     }
 
     private com.github.retrooper.packetevents.protocol.item.ItemStack addLore(
-            com.github.retrooper.packetevents.protocol.item.ItemStack packetItem, UUID uuid) {
+            com.github.retrooper.packetevents.protocol.item.ItemStack packetItem, UUID uuid, int windowId, int slot) {
         if (packetItem == null || packetItem.isEmpty()) return null;
 
         org.bukkit.inventory.ItemStack item = SpigotConversionUtil.toBukkitItemStack(packetItem);
@@ -104,7 +104,13 @@ public class WorthLore extends PacketListenerAbstract {
         if (unit < 0) return null;
 
         List<Component> lore = new ArrayList<>();
-        lore.add(plugin.loreLine(unit * item.getAmount()));
+        double total = unit * item.getAmount();
+        if (plugin.isHeldSlot(uuid, windowId, slot)) {
+            Double frozen = plugin.frozenTotal(uuid, slot, item.getType());
+            if (frozen != null) total = frozen;
+            else plugin.rememberHeld(uuid, slot, item.getType(), total);
+        }
+        lore.add(plugin.loreLine(total));
         item.lore(lore);
         plugin.onLoreApplied();
         return SpigotConversionUtil.fromBukkitItemStack(item);

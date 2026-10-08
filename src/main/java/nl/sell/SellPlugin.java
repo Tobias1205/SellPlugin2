@@ -114,6 +114,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private final Set<UUID> switching = ConcurrentHashMap.newKeySet();
     private volatile boolean dirty = false;
     private final Map<UUID, Integer> heldSlot = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastMining = new ConcurrentHashMap<>();
+    private final Map<UUID, HeldLore> heldLore = new ConcurrentHashMap<>();
+    private final Set<UUID> staleHeld = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> idleCheck = ConcurrentHashMap.newKeySet();
+
+    /** Wat de client het laatst als worth te zien kreeg op het vastgehouden item. */
+    private record HeldLore(int slot, Material type, double total) { }
     private final Map<UUID, List<SaleEntry>> history = new ConcurrentHashMap<>();
     private File historyFile;
 
@@ -506,6 +513,9 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         multiplierCache.remove(p.getUniqueId());
         creative.remove(p.getUniqueId());
         heldSlot.remove(p.getUniqueId());
+        lastMining.remove(p.getUniqueId());
+        heldLore.remove(p.getUniqueId());
+        staleHeld.remove(p.getUniqueId());
     }
 
     @EventHandler
@@ -518,6 +528,36 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     @EventHandler
     public void onSwap(PlayerSwapHandItemsEvent e) { resyncInventory(e.getPlayer().getUniqueId()); }
+
+    // Tijdens het hakken houden we de worth-tekst van het vastgehouden item vast (zie frozenTotal).
+    @EventHandler
+    public void onSwing(org.bukkit.event.player.PlayerAnimationEvent e) { touchMining(e.getPlayer().getUniqueId()); }
+
+    @EventHandler
+    public void onBlockDamage(org.bukkit.event.block.BlockDamageEvent e) { touchMining(e.getPlayer().getUniqueId()); }
+
+    @EventHandler
+    public void onBlockBreak(org.bukkit.event.block.BlockBreakEvent e) { touchMining(e.getPlayer().getUniqueId()); }
+
+    private void touchMining(UUID id) {
+        lastMining.put(id, System.currentTimeMillis());
+        if (idleCheck.add(id)) scheduleIdleCheck(id);
+    }
+
+    /** Als je een tijdje niet meer hakt, krijgt het vastgehouden item de juiste worth weer. */
+    private void scheduleIdleCheck(UUID id) {
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            Long last = lastMining.get(id);
+            if (last != null && System.currentTimeMillis() - last < 1000) {
+                scheduleIdleCheck(id);
+                return;
+            }
+            idleCheck.remove(id);
+            if (!staleHeld.remove(id)) return;
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
+        }, 20L);
+    }
 
     @EventHandler
     public void onHeld(org.bukkit.event.player.PlayerItemHeldEvent e) {
@@ -709,15 +749,38 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }, 2L);
     }
 
-    /**
-     * Het item in je geselecteerde hotbar-slot krijgt geen worth-regel. Verandert de tekst van een
-     * vastgehouden item (bv. door oppakken tijdens hakken), dan reset de client het hakken.
-     */
-    boolean skipSlot(UUID id, int windowId, int slot) {
-        if (!getConfig().getBoolean("worth-lore.hide-on-held-slot", true)) return false;
+    private String heldMode() {
+        return getConfig().getString("worth-lore.held-slot", "freeze").toLowerCase(Locale.ROOT);
+    }
+
+    boolean isHeldSlot(UUID id, int windowId, int slot) {
         if (windowId != 0) return false;
         Integer held = heldSlot.get(id);
         return held != null && slot == 36 + held;
+    }
+
+    /** Alleen bij held-slot: hide. Dan krijgt het vastgehouden item nooit een worth-regel. */
+    boolean skipSlot(UUID id, int windowId, int slot) {
+        return heldMode().equals("hide") && isHeldSlot(id, windowId, slot);
+    }
+
+    /**
+     * Verandert de tekst van het vastgehouden item terwijl je hakt (bv. door oppakken), dan reset
+     * Minecraft het hakken. Tijdens het hakken sturen we daarom dezelfde tekst als de vorige keer.
+     * Zodra je stopt wordt de juiste waarde weer getoond.
+     */
+    Double frozenTotal(UUID id, int slot, Material type) {
+        if (!heldMode().equals("freeze")) return null;
+        Long last = lastMining.get(id);
+        if (last == null || System.currentTimeMillis() - last > 1500) return null;
+        HeldLore h = heldLore.get(id);
+        if (h == null || h.slot() != slot || h.type() != type) return null;
+        staleHeld.add(id);
+        return h.total();
+    }
+
+    void rememberHeld(UUID id, int slot, Material type, double total) {
+        heldLore.put(id, new HeldLore(slot, type, total));
     }
 
     boolean shouldShowLore(UUID id) {

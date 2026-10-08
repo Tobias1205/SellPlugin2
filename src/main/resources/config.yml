@@ -1,0 +1,201 @@
+# Alle prijzen in prices.yml worden hiermee vermenigvuldigd (1.0 = ongewijzigd).
+price-scale: 1.0
+
+# Prijs voor items die nog niet in prices.yml staan (worden automatisch toegevoegd)
+fallback-price: 1.0
+
+# ---- Multiplier systeem ----
+# Elke categorie heeft een eigen multiplier. Verkoop je veel items uit een
+# categorie, dan stijgt alleen de multiplier van die categorie.
+# Gerekend wordt met het totaal verkochte bedrag (zonder multiplier).
+max-multiplier: 3.0
+
+# Basis levels per categorie: "totaal verkocht": multiplier
+# De drempels worden per categorie vermenigvuldigd met "scale" (zie onder).
+category-levels:
+  "0": 1.0
+  "2500": 1.1
+  "10000": 1.25
+  "40000": 1.5
+  "100000": 1.75
+  "250000": 2.0
+  "500000": 2.25
+  "1000000": 2.5
+  "2000000": 2.75
+  "4000000": 3.0
+
+# De 9 categorieen (onderste rij van /sell). Waar elk item bij hoort staat in categories.yml.
+# scale: 0.5 = drempels de helft lager (handig voor goedkope categorieen), 2 = dubbel zo hoog.
+# Kleur van alle categorie-namen (MiniMessage tag, bv. <gray>, <yellow>, <gold>, <aqua>)
+category-name-color: "<gray>"
+default-category: blocks
+categories:
+  crops:
+    name: "Crops"
+    icon: WHEAT
+    scale: 0.5
+  ores:
+    name: "Ores"
+    icon: DIAMOND
+    scale: 2.0
+  mobs:
+    name: "Mob Drops"
+    icon: BONE
+    scale: 0.5
+  natural:
+    name: "Natural Items"
+    icon: GRASS_BLOCK
+    scale: 0.4
+  tools:
+    name: "Armor & Tools"
+    icon: SHIELD
+    scale: 1.5
+  fish:
+    name: "Fish"
+    icon: COD
+    scale: 0.5
+  books:
+    name: "Enchanted Books"
+    icon: ENCHANTED_BOOK
+    scale: 2.0
+  potions:
+    name: "Potions"
+    icon: BREWING_STAND
+    scale: 1.0
+  blocks:
+    name: "Blocks"
+    icon: BRICKS
+    scale: 0.5
+
+# ---- Enchanted books ----
+# Prijs = (prijs per level van elke enchantment) x (level), bij elkaar opgeteld.
+enchanted-books:
+  default-per-level: 50
+  prices:
+    protection: 60
+    fire_protection: 40
+    feather_falling: 50
+    blast_protection: 40
+    projectile_protection: 40
+    respiration: 50
+    aqua_affinity: 80
+    thorns: 60
+    depth_strider: 70
+    frost_walker: 120
+    soul_speed: 120
+    swift_sneak: 150
+    binding_curse: 5
+    sharpness: 70
+    smite: 40
+    bane_of_arthropods: 40
+    knockback: 40
+    fire_aspect: 80
+    looting: 100
+    sweeping_edge: 60
+    efficiency: 70
+    silk_touch: 400
+    unbreaking: 90
+    fortune: 150
+    power: 70
+    punch: 40
+    flame: 100
+    infinity: 400
+    luck_of_the_sea: 80
+    lure: 60
+    loyalty: 70
+    impaling: 70
+    riptide: 100
+    channeling: 150
+    multishot: 150
+    piercing: 50
+    quick_charge: 70
+    mending: 1500
+    vanishing_curse: 5
+    density: 80
+    breach: 80
+    wind_burst: 100
+
+# ---- Potions ----
+# Prijs van de basis-potion. "long_" (verlengd) en "strong_" (II) krijgen een extra factor.
+potions:
+  default-price: 10
+  long-multiplier: 1.5
+  strong-multiplier: 1.7
+  splash-multiplier: 1.25
+  lingering-multiplier: 2.5
+  prices:
+    water: 0.5
+    mundane: 2
+    thick: 2
+    awkward: 3
+    night_vision: 12
+    invisibility: 15
+    leaping: 10
+    fire_resistance: 15
+    swiftness: 12
+    slowness: 10
+    water_breathing: 12
+    healing: 15
+    harming: 12
+    poison: 12
+    regeneration: 20
+    strength: 20
+    weakness: 8
+    luck: 30
+    turtle_master: 40
+    slow_falling: 20
+    wind_charged: 15
+    weaving: 15
+    oozing: 15
+    infested: 15
+
+# Globale multiplier voor iedereen (bv. 2.0 voor een dubbel-geld event).
+# Aanpasbaar in game met /sell global <x>
+global-multiplier: 1.0
+
+# Toont de waarde in de tooltip van items in je inventory (heeft PacketEvents nodig)
+worth-lore:
+  enabled: true
+  format: "<!italic><gray>Worth <green>${price}"
+
+gui:
+  worth-title: "<dark_gray>Item prices"
+  search-title: "<dark_gray>Zoeken: <white>{query} <gray>({page}/{pages})"
+  close: "<!italic><yellow>Sluiten"
+  sell-title: "<dark_gray>Sell"
+  progress-title: "<dark_gray>Multiplier: {category}"
+  multiplier-line: "<!italic><gray>Multiplier: <green>x{multiplier}"
+  sold-line: "<!italic><gray>Verkocht: <white>${sold}"
+  next-line: "<!italic><gray>Volgend level: <yellow>x{next}</yellow> bij <white>${needed}"
+  max-line: "<!italic><gold>Maximaal level bereikt!"
+  progress-line: "<!italic>{bar} <white>{percent}%"
+  click-line: "<!italic><yellow>Klik voor het overzicht"
+  items-click-line: "<!italic><yellow>Klik om alle items te zien"
+  items-title: "<dark_gray>{category} <gray>- items ({page}/{pages})"
+  worth-level: "<!italic><gray>Waarde: <green>${price}</green> <dark_gray>(per level)"
+  potion-note: "<!italic><dark_gray>Verlengd, versterkt en splash zijn meer waard"
+  prev: "<!italic><yellow>Vorige pagina"
+  next: "<!italic><yellow>Volgende pagina"
+  back-overview: "<!italic><yellow>Terug naar overzicht"
+  level-reached: "<!italic><green>x{multiplier} behaald"
+  level-locked: "<!italic><gray>x{multiplier}"
+  level-from: "<!italic><gray>Vanaf <white>${needed}</white> verkocht"
+  level-remaining: "<!italic><gray>Nog <yellow>${remaining}</yellow> te gaan"
+  back: "<!italic><yellow>Terug naar /sell"
+
+messages:
+  sold: "<green>Je hebt <white>{items}</white> items verkocht voor <yellow>${money}</yellow> <gray>(x{multiplier})"
+  category-levelup: "<gold><bold>LEVEL UP!</bold> <white>{category}</white> <yellow>multiplier is nu x{progress}</yellow>"
+  no-permission: "<red>Geen permissie."
+  reloaded: "<green>Config en prijzen herladen."
+  multipliers-header: "<green>Jouw multipliers <gray>(global x{global})"
+  multiplier-line: "<gray>- {category}<gray>: <yellow>x{multiplier} <dark_gray>(level x{progress})"
+  worth-hand: "<yellow>{item}</yellow> <gray>- Worth <green>${stack}</green> <dark_gray>(x{multiplier})"
+  not-sellable: "<red>Dit item kan niet verkocht worden."
+  hold-item: "<red>Hou een item vast."
+  global-set: "<green>Global multiplier staat nu op x{multiplier}."
+  usage-global: "<red>Gebruik: /sell global <getal>"
+  worth-lookup: "<yellow>{item}</yellow> <gray>- Worth <green>${price}</green> <dark_gray>({category}<dark_gray>, x{multiplier})"
+  worth-special: "<yellow>{item}</yellow> <gray>- de prijs hangt af van het type. Kijk in <white>/worth</white> bij {category}"
+  worth-none: "<red>Geen item gevonden met die naam."
+  worth-many: "<gray>{count} items gevonden, wees specifieker. Bijvoorbeeld: <white>{list}"

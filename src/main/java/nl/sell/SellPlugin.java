@@ -1538,13 +1538,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             sender.sendMessage(msg("players-only"));
             return true;
         }
-        if (!player.hasPermission("sell.use")) { player.sendMessage(msg("no-permission")); return true; }
-
         if (sub.equals("history")) {
+            if (!player.hasPermission("sell.history")) { player.sendMessage(msg("no-permission")); return true; }
             Bukkit.getScheduler().runTask(this, () -> player.openInventory(buildHistory(player, 0)));
             return true;
         }
         if (sub.equals("multiplier")) {
+            if (!player.hasPermission("sell.multiplier")) { player.sendMessage(msg("no-permission")); return true; }
             double[] sold = soldOf(player.getUniqueId());
             double[] mult = computeMultipliers(player);
             player.sendMessage(msg("multipliers-header", "{global}", fmt(globalMultiplier())));
@@ -1557,6 +1557,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             return true;
         }
 
+        if (!player.hasPermission("sell.use")) { player.sendMessage(msg("no-permission")); return true; }
         openSell(player, null);
         return true;
     }
@@ -1644,7 +1645,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
-        if (cmd.getName().equalsIgnoreCase("worth") || (args.length == 2 && args[0].equalsIgnoreCase("worth"))) {
+        if ((cmd.getName().equalsIgnoreCase("worth") || (args.length == 2 && args[0].equalsIgnoreCase("worth")))
+                && sender.hasPermission("sell.worth")) {
             String typed = args[args.length - 1].toLowerCase(Locale.ROOT);
             List<String> names = new ArrayList<>();
             if ("hand".startsWith(typed)) names.add("hand");
@@ -1661,7 +1663,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             return codes;
         }
         if (args.length != 1) return List.of();
-        List<String> out = new ArrayList<>(List.of("worth", "multiplier", "history"));
+        List<String> out = new ArrayList<>();
+        if (sender.hasPermission("sell.worth")) out.add("worth");
+        if (sender.hasPermission("sell.multiplier")) out.add("multiplier");
+        if (sender.hasPermission("sell.history")) out.add("history");
         if (sender.hasPermission("sell.admin")) out.addAll(List.of("reload", "global", "status", "language"));
         out.removeIf(s -> !s.startsWith(args[0].toLowerCase(Locale.ROOT)));
         return out;

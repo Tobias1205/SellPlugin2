@@ -1,5 +1,5 @@
 name: SellPlugin
-version: 1.17.0
+version: 1.18.0
 main: nl.sell.SellPlugin
 api-version: '1.21'
 depend: [Vault]
@@ -12,12 +12,27 @@ commands:
     description: Bekijk de prijs van elk item
     usage: /worth [item|hand]
 permissions:
-  sell.worth:
-    description: Gebruik /worth
-    default: true
+  sell.*:
+    description: Alle rechten van de plugin
+    default: op
+    children:
+      sell.use: true
+      sell.worth: true
+      sell.history: true
+      sell.multiplier: true
+      sell.admin: true
   sell.use:
-    description: Gebruik /sell
+    description: /sell (het verkoopmenu openen)
+    default: true
+  sell.worth:
+    description: /worth en /sell worth
+    default: true
+  sell.history:
+    description: /sell history
+    default: true
+  sell.multiplier:
+    description: /sell multiplier
     default: true
   sell.admin:
-    description: Reload en global multiplier
+    description: /sell reload, status, global en language
     default: op

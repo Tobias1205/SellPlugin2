@@ -210,6 +210,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             heldSlot.put(p.getUniqueId(), p.getInventory().getHeldItemSlot());
             refreshPlayer(p);
         }
+        // Na het opstarten van de server: zorg dat /sell en /worth van ons zijn (en niet van een andere plugin)
+        getServer().getScheduler().runTaskLater(this, () -> claimCommands(), 40L);
         getServer().getScheduler().runTaskTimer(this, () -> refreshAll(), 200L, 600L);
         getServer().getScheduler().runTaskTimerAsynchronously(this, () -> { if (dirty) saveData(); }, 1200L, 6000L);
     }
@@ -1470,6 +1472,71 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         return MM.deserialize(applyTheme(s));
     }
 
+    /** Wie bezit het commando? Geeft de naam van de plugin terug, of "?" als dat niet te zien is. */
+    private String ownerOf(String name) {
+        try {
+            Command c = Bukkit.getCommandMap().getCommand(name);
+            if (c == null) return "-";
+            if (c instanceof org.bukkit.command.PluginCommand pc) return pc.getPlugin().getName();
+            return c.getClass().getName();
+        } catch (Throwable t) {
+            return "?";
+        }
+    }
+
+    /**
+     * Als een andere plugin (bv. EssentialsX) /sell of /worth al heeft ingenomen, nemen wij het commando over.
+     * Daarna wordt de lijst met commando's opnieuw naar de spelers gestuurd.
+     */
+    private void claimCommands() {
+        boolean changed = false;
+        try {
+            Map<String, Command> known = Bukkit.getCommandMap().getKnownCommands();
+            for (String name : List.of("sell", "worth")) {
+                Command ours = getCommand(name);
+                if (ours == null) continue;
+                Command current = known.get(name);
+                if (current != ours) {
+                    getLogger().warning("/" + name + " was in gebruik door " + ownerOf(name)
+                            + ", dit commando is nu overgenomen door SellPlugin.");
+                    known.put(name, ours);
+                    changed = true;
+                }
+            }
+        } catch (Throwable t) {
+            getLogger().warning("Kon commando's niet overnemen: " + t);
+        }
+        if (changed) {
+            try {
+                Object server = Bukkit.getServer();
+                server.getClass().getMethod("syncCommands").invoke(server);
+            } catch (Throwable ignored) { }
+            for (Player p : Bukkit.getOnlinePlayers()) p.updateCommands();
+        }
+    }
+
+    /** Zorgt dat de opties na "/sell " altijd getoond worden, ook als een andere plugin het commando deelt. */
+    @EventHandler
+    public void onAsyncTab(com.destroystokyo.paper.event.server.AsyncTabCompleteEvent e) {
+        if (!e.isCommand()) return;
+        String buffer = e.getBuffer();
+        if (buffer.startsWith("/")) buffer = buffer.substring(1);
+        String[] parts = buffer.split(" ", -1);
+        if (parts.length < 2) return;
+        String label = parts[0].toLowerCase(Locale.ROOT);
+        String name;
+        if (label.equals("sell") || label.equals("sellplugin:sell")) name = "sell";
+        else if (label.equals("worth") || label.equals("sellplugin:worth")) name = "worth";
+        else return;
+        Command c = getCommand(name);
+        if (c == null) return;
+        try {
+            List<String> out = onTabComplete(e.getSender(), c, parts[0], Arrays.copyOfRange(parts, 1, parts.length));
+            e.setCompletions(new ArrayList<>(out));
+            e.setHandled(true);
+        } catch (Throwable ignored) { }
+    }
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         if (cmd.getName().equalsIgnoreCase("worth")) return handleWorth(sender, args);
@@ -1510,6 +1577,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (!sender.hasPermission("sell.admin")) { sender.sendMessage(msg("no-permission")); return true; }
             boolean pe = getServer().getPluginManager().isPluginEnabled("packetevents");
             sender.sendMessage(msg("status-title"));
+            sender.sendMessage(Component.text("/sell: " + ownerOf("sell") + "  |  /worth: " + ownerOf("worth")));
             sender.sendMessage(msg("status-packetevents", "{state}", tr("messages." + (pe ? "state-yes" : "state-no-install"), "")));
             sender.sendMessage(msg("status-lore", "{state}", tr("messages." + (worthLore != null ? "state-yes" : "state-no"), "")));
             sender.sendMessage(msg("status-lore-count", "{count}", String.valueOf(loreApplied.get())));

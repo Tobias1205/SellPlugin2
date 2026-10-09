@@ -1,3 +1,11 @@
+# ---- Taal / Language ----
+# Beschikbaar / available: nl, en, de, fr, es. Eigen taal? Kopieer plugins/SellPlugin/lang/en.yml
+# naar bv. it.yml, vertaal de teksten en zet hier de code. Aanpassen kan ook in game: /sell language <code>
+language: nl
+
+# Kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) in de menu's en de Worth-tekst. Zet op false voor gewone letters.
+small-caps: true
+
 # Alle prijzen in prices.yml worden hiermee vermenigvuldigd (1.0 = ongewijzigd).
 price-scale: 1.0
 
@@ -44,39 +52,30 @@ category-name-color: "<gray>"
 default-category: blocks
 categories:
   crops:
-    name: "Crops"
     icon: WHEAT
     scale: 0.5
   ores:
-    name: "Ores"
     icon: DIAMOND
     scale: 2.0
   mobs:
-    name: "Mob Drops"
     icon: BONE
     scale: 0.5
   natural:
-    name: "Natural Items"
     icon: GRASS_BLOCK
     scale: 0.4
   tools:
-    name: "Armor & Tools"
     icon: SHIELD
     scale: 1.5
   fish:
-    name: "Fish"
     icon: COD
     scale: 0.5
   books:
-    name: "Enchanted Books"
     icon: ENCHANTED_BOOK
     scale: 2.0
   potions:
-    name: "Potions"
     icon: BREWING_STAND
     scale: 1.0
   blocks:
-    name: "Blocks"
     icon: BRICKS
     scale: 0.5
 
@@ -184,7 +183,6 @@ worth-lore:
   # vastgehouden item bijgewerkt wordt. Lager = sneller bijwerken, maar een korte pauze tijdens
   # het hakken kan dan een reset geven. Loslaten van de muisknop werkt altijd direct bij.
   mining-idle-ms: 250
-  format: "<!italic><gray>Worth <green>${price}"
 
 # Alle teksten in de menu's worden automatisch in kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) getoond.
 # Kleurenschema: titels dark_gray, labels gray, waardes green, acties yellow.
@@ -195,67 +193,3 @@ number-format:
 history:
   max-entries: 200
   date-format: "dd-MM HH:mm"
-
-gui:
-  sell-title: "<dark_gray>sell"
-  worth-title: "<dark_gray>item prices"
-  progress-menu-title: "<dark_gray>{category} <dark_gray>progress"
-  items-title: "<dark_gray>{category} <dark_gray>items ({page}/{pages})"
-  worth-items-title: "<dark_gray>{category} <dark_gray>prices ({page}/{pages})"
-  search-title: "<dark_gray>search: {query} ({page}/{pages})"
-  history-title: "<dark_gray>sell history ({page}/{pages})"
-
-  # categorie-icoon
-  multiplier-line: "<!italic><gray>Multiplier: <green>x{multiplier}"
-  sold-line: "<!italic><gray>Verkocht: <green>${sold}"
-  next-line: "<!italic><gray>Volgend level: <green>x{next} <gray>bij <green>${needed}"
-  max-line: "<!italic><green>Maximaal level bereikt!"
-  progress-line: "<!italic>{bar} <white>{percent}%"
-  click-line: "<!italic><yellow>Klik voor het overzicht"
-  items-click-line: "<!italic><yellow>Klik om alle items te zien"
-
-  # progress menu
-  level-reached: "<!italic><green>x{multiplier} behaald"
-  level-current: "<!italic><yellow>x{multiplier} <gray>(bezig)"
-  level-locked: "<!italic><gray>x{multiplier}"
-  level-from: "<!italic><gray>Vanaf <green>${needed} <gray>verkocht"
-  level-remaining: "<!italic><gray>Nog <green>${remaining} <gray>te gaan"
-
-  # knoppen
-  back: "<!italic><red>Terug"
-  back-overview: "<!italic><red>Terug"
-  back-worth: "<!italic><red>Terug"
-  close: "<!italic><red>Sluiten"
-  prev: "<!italic><yellow>Vorige pagina"
-  next: "<!italic><yellow>Volgende pagina"
-  page-info: "<!italic><gray>Pagina <white>{page}<gray>/<white>{pages}"
-  potion-note: "<!italic><dark_gray>Verlengd, versterkt en splash zijn meer waard"
-
-  # sell history
-  history-entry-name: "<!italic><yellow>#{number} <dark_gray>- <gray>{date}"
-  history-money: "<!italic><gray>Verdiend: <green>${money}"
-  history-items: "<!italic><gray>Items: <white>{items}"
-  history-mult: "<!italic><gray>Multiplier: <green>x{multiplier}"
-  history-top-header: "<!italic><gray>Meest waard:"
-  history-top-line: "<!italic><dark_gray>- <white>{count}x <gray>{item}"
-  history-summary-name: "<!italic><yellow>Totaal"
-  history-summary-total: "<!italic><gray>Totaal verdiend: <green>${money}"
-  history-summary-sales: "<!italic><gray>Aantal verkopen: <white>{sales}"
-  history-empty: "<!italic><gray>Nog niets verkocht"
-
-messages:
-  sold: "<green>Je hebt <white>{items}</white> items verkocht voor <yellow>${money}</yellow> <gray>(x{multiplier})"
-  category-levelup: "<gold><bold>LEVEL UP!</bold> <white>{category}</white> <yellow>multiplier is nu x{progress}</yellow>"
-  no-permission: "<red>Geen permissie."
-  reloaded: "<green>Config en prijzen herladen."
-  multipliers-header: "<green>Jouw multipliers <gray>(global x{global})"
-  multiplier-line: "<gray>- {category}<gray>: <yellow>x{multiplier} <dark_gray>(level x{progress})"
-  worth-hand: "<yellow>{item}</yellow> <gray>- Worth <green>${stack}</green> <dark_gray>(x{multiplier})"
-  not-sellable: "<red>Dit item kan niet verkocht worden."
-  hold-item: "<red>Hou een item vast."
-  global-set: "<green>Global multiplier staat nu op x{multiplier}."
-  usage-global: "<red>Gebruik: /sell global <getal>"
-  worth-lookup: "<yellow>{item}</yellow> <gray>- Worth <green>${price}</green> <dark_gray>({category}<dark_gray>, x{multiplier})"
-  worth-special: "<yellow>{item}</yellow> <gray>- de prijs hangt af van het type. Kijk in <white>/worth</white> bij {category}"
-  worth-none: "<red>Geen item gevonden met die naam."
-  worth-many: "<gray>{count} items gevonden, wees specifieker. Bijvoorbeeld: <white>{list}"

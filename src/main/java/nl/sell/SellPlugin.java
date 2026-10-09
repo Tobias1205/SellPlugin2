@@ -194,6 +194,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         dataFile = new File(getDataFolder(), "data.yml");
         historyFile = new File(getDataFolder(), "history.yml");
         loadHistory();
+        loadLang();
         loadCategories();
         loadData();
         loadPrices();
@@ -240,10 +241,65 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
     }
 
+    // ------------------------------------------------------------------ talen
+
+    private static final List<String> BUNDLED_LANGS = List.of("nl", "en", "de", "fr", "es");
+    private volatile YamlConfiguration langDisk;   // plugins/SellPlugin/lang/<taal>.yml (aanpasbaar)
+    private volatile YamlConfiguration langJar;    // dezelfde taal uit de jar (vangnet voor ontbrekende regels)
+    private volatile YamlConfiguration langEn;     // Engels uit de jar (laatste vangnet)
+
+    private YamlConfiguration readJarLang(String code) {
+        try (java.io.InputStream in = getResource("lang/" + code + ".yml")) {
+            if (in == null) return null;
+            return YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private void loadLang() {
+        String code = getConfig().getString("language", "nl").toLowerCase(Locale.ROOT);
+        File dir = new File(getDataFolder(), "lang");
+        dir.mkdirs();
+        for (String l : BUNDLED_LANGS) {
+            if (!new File(dir, l + ".yml").exists()) {
+                try { saveResource("lang/" + l + ".yml", false); } catch (IllegalArgumentException ignored) { }
+            }
+        }
+        File f = new File(dir, code + ".yml");
+        langDisk = f.exists() ? YamlConfiguration.loadConfiguration(f) : null;
+        langJar = readJarLang(code);
+        langEn = readJarLang("en");
+        if (langDisk == null && langJar == null) {
+            getLogger().warning("Taal '" + code + "' niet gevonden, Engels wordt gebruikt.");
+        }
+    }
+
+    String currentLanguage() {
+        return getConfig().getString("language", "nl").toLowerCase(Locale.ROOT);
+    }
+
+    private List<String> availableLanguages() {
+        java.util.TreeSet<String> set = new java.util.TreeSet<>(BUNDLED_LANGS);
+        File[] files = new File(getDataFolder(), "lang").listFiles((d, n) -> n.endsWith(".yml"));
+        if (files != null) for (File x : files) set.add(x.getName().substring(0, x.getName().length() - 4));
+        return new ArrayList<>(set);
+    }
+
+    /** Tekst opzoeken: taalbestand op schijf, dezelfde taal uit de jar, Engels, oude config, standaardwaarde. */
+    String tr(String path, String def) {
+        for (YamlConfiguration y : new YamlConfiguration[]{langDisk, langJar, langEn}) {
+            if (y != null && y.isString(path)) return y.getString(path, def);
+        }
+        return getConfig().getString(path, def);
+    }
+
     // ------------------------------------------------------------------ laden / opslaan
 
     private void loadCategories() {
         shortNumbers = getConfig().getBoolean("number-format.short", true);
+        smallCaps = getConfig().getBoolean("small-caps", true);
         List<double[]> base = new ArrayList<>();
         ConfigurationSection ls = getConfig().getConfigurationSection("progress-levels");
         if (ls != null) {
@@ -267,7 +323,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 double scale = Math.max(0.0001, c.getDouble("scale", 1.0));
                 List<double[]> lv = new ArrayList<>();
                 for (double[] b : base) lv.add(new double[]{(double) Math.round(b[0] * scale), b[1]});
-                list.add(new Category(key, color + sc(MM.stripTags(c.getString("name", key))), icon, lv));
+                list.add(new Category(key, color + sc(MM.stripTags(tr("categories." + key, c.getString("name", key)))), icon, lv));
             }
         }
         if (list.isEmpty()) list.add(new Category("all", "<green>Alles", Material.CHEST, base));
@@ -565,7 +621,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Stuurt het inventory opnieuw, maar alleen als de worth van het vastgehouden item achterliep. */
     private void refreshHeldNow(UUID id) {
-        if (!staleHeld.remove(id)) return;
+        boolean stale = staleHeld.remove(id);
+        // Belangrijk: de freeze loslaten, anders stuurt de verversing zelf weer de oude tekst
+        lastMining.remove(id);
+        if (!stale) return;
         Player p = Bukkit.getPlayer(id);
         if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
     }
@@ -601,9 +660,9 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (cursor == null || cursor.getType().isAir() || !cursor.hasItemMeta()) return;
         ItemMeta meta = cursor.getItemMeta();
         if (!meta.hasLore() || meta.lore() == null || meta.lore().isEmpty()) return;
-        String format = MM.stripTags(getConfig().getString("worth-lore.format", "Worth ${price}"));
+        String format = MM.stripTags(tr("worth-lore.format", "Worth ${price}"));
         int idx = format.indexOf("{price}");
-        String prefix = idx >= 0 ? format.substring(0, idx) : format;
+        String prefix = sc(idx >= 0 ? format.substring(0, idx) : format);
         String first = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText()
                 .serialize(meta.lore().get(0));
         if (!prefix.isBlank() && first.startsWith(prefix)) {
@@ -795,6 +854,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         HeldLore h = heldLore.get(id);
         if (h == null || h.slot() != slot || h.type() != type) return null;
         staleHeld.add(id);
+        // Zorg dat er altijd een controle volgt, ook als de vorige al klaar was
+        if (idleCheck.add(id)) Bukkit.getScheduler().runTask(this, () -> scheduleIdleCheck(id));
         return h.total();
     }
 
@@ -813,7 +874,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     }
 
     Component loreLine(double total) {
-        String f = scMini(getConfig().getString("worth-lore.format", "<!italic><gray>Worth <green>${price}"));
+        String f = scMini(tr("worth-lore.format", "<!italic><gray>Worth <green>${price}"));
         return MM.deserialize(f.replace("{price}", fmt(total)));
     }
 
@@ -841,6 +902,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Gewone tekst naar kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ). */
     static String sc(String text) {
+        if (!smallCaps) return text;
         StringBuilder sb = new StringBuilder(text.length());
         for (char ch : text.toCharArray()) {
             int i = SC_FROM.indexOf(Character.toLowerCase(ch));
@@ -878,7 +940,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     }
 
     private String str(String path) {
-        return getConfig().getString(path, "");
+        return tr(path, "");
     }
 
     private Component line(String path, String... replacements) {
@@ -1305,7 +1367,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     // ------------------------------------------------------------------ command
 
     private Component msg(String key, String... replacements) {
-        String s = getConfig().getString("messages." + key, key);
+        String s = tr("messages." + key, key);
         for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
         return MM.deserialize(s);
     }
@@ -1319,23 +1381,44 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (sub.equals("reload")) {
             if (!sender.hasPermission("sell.admin")) { sender.sendMessage(msg("no-permission")); return true; }
             reloadConfig();
+            loadLang();
             loadCategories();
             loadPrices();
             refreshAllForced();
             sender.sendMessage(msg("reloaded"));
             return true;
         }
+        if (sub.equals("language") || sub.equals("lang") || sub.equals("taal")) {
+            if (!sender.hasPermission("sell.admin")) { sender.sendMessage(msg("no-permission")); return true; }
+            List<String> codes = availableLanguages();
+            if (args.length < 2) {
+                sender.sendMessage(msg("language-current", "{language}", currentLanguage(), "{list}", String.join(", ", codes)));
+                return true;
+            }
+            String code = args[1].toLowerCase(Locale.ROOT);
+            if (!codes.contains(code)) {
+                sender.sendMessage(msg("language-unknown", "{list}", String.join(", ", codes)));
+                return true;
+            }
+            getConfig().set("language", code);
+            saveConfig();
+            loadLang();
+            loadCategories();
+            refreshAllForced();
+            sender.sendMessage(msg("language-set", "{language}", code));
+            return true;
+        }
         if (sub.equals("status")) {
             if (!sender.hasPermission("sell.admin")) { sender.sendMessage(msg("no-permission")); return true; }
             boolean pe = getServer().getPluginManager().isPluginEnabled("packetevents");
-            sender.sendMessage(MM.deserialize("<yellow>SellPlugin status"));
-            sender.sendMessage(MM.deserialize("<gray>PacketEvents gevonden: " + (pe ? "<green>ja" : "<red>nee (installeer PacketEvents)")));
-            sender.sendMessage(MM.deserialize("<gray>Worth-tooltip actief: " + (worthLore != null ? "<green>ja" : "<red>nee")));
-            sender.sendMessage(MM.deserialize("<gray>Items met tooltip verstuurd: <white>" + loreApplied.get()));
-            sender.sendMessage(MM.deserialize("<gray>Laatste fout: <white>" + lastLoreError));
+            sender.sendMessage(msg("status-title"));
+            sender.sendMessage(msg("status-packetevents", "{state}", tr("messages." + (pe ? "state-yes" : "state-no-install"), "")));
+            sender.sendMessage(msg("status-lore", "{state}", tr("messages." + (worthLore != null ? "state-yes" : "state-no"), "")));
+            sender.sendMessage(msg("status-lore-count", "{count}", String.valueOf(loreApplied.get())));
+            sender.sendMessage(msg("status-last-error", "{error}", MM.escapeTags(lastLoreError)));
             if (sender instanceof Player pl) {
-                sender.sendMessage(MM.deserialize("<gray>Jij in creative (geen tooltip): "
-                        + (creative.contains(pl.getUniqueId()) ? "<red>ja, ga in survival" : "<green>nee")));
+                sender.sendMessage(msg("status-creative", "{state}",
+                        tr("messages." + (creative.contains(pl.getUniqueId()) ? "creative-yes" : "creative-no"), "")));
             }
             return true;
         }
@@ -1354,7 +1437,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
 
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Alleen spelers kunnen dit gebruiken.");
+            sender.sendMessage(msg("players-only"));
             return true;
         }
         if (!player.hasPermission("sell.use")) { player.sendMessage(msg("no-permission")); return true; }
@@ -1394,7 +1477,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (sender instanceof Player p) {
                 p.openInventory(buildWorthHome(p));
             } else {
-                sender.sendMessage("Gebruik: /worth <item>");
+                sender.sendMessage(msg("usage-worth"));
             }
             return true;
         }
@@ -1402,7 +1485,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         Player player = sender instanceof Player pl ? pl : null;
 
         if (args[0].equalsIgnoreCase("hand")) {
-            if (player == null) { sender.sendMessage("Alleen spelers kunnen dit gebruiken."); return true; }
+            if (player == null) { sender.sendMessage(msg("players-only")); return true; }
             ItemStack hand = player.getInventory().getItemInMainHand();
             if (hand.getType().isAir()) { player.sendMessage(msg("hold-item")); return true; }
             double[] mults = computeMultipliers(player);
@@ -1474,9 +1557,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             }
             return names;
         }
+        if (args.length == 2 && args[0].equalsIgnoreCase("language") && sender.hasPermission("sell.admin")) {
+            List<String> codes = availableLanguages();
+            codes.removeIf(c -> !c.startsWith(args[1].toLowerCase(Locale.ROOT)));
+            return codes;
+        }
         if (args.length != 1) return List.of();
         List<String> out = new ArrayList<>(List.of("worth", "multiplier", "history"));
-        if (sender.hasPermission("sell.admin")) out.addAll(List.of("reload", "global", "status"));
+        if (sender.hasPermission("sell.admin")) out.addAll(List.of("reload", "global", "status", "language"));
         out.removeIf(s -> !s.startsWith(args[0].toLowerCase(Locale.ROOT)));
         return out;
     }
@@ -1562,6 +1650,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Zet op false in config (number-format.short) om volledige getallen te tonen. */
     private static volatile boolean shortNumbers = true;
+    static volatile boolean smallCaps = true;
 
     private static String fmtExact(double d) {
         String s = String.format(Locale.US, "%,.2f", d);

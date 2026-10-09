@@ -85,13 +85,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             14, 23, 32, 41, 42, 43, 34, 25, 16, 7};
 
     /** Items die nooit verkocht kunnen worden (niet verkrijgbaar of met data). */
+    // Alleen echte admin-items / items met eigen data staan hier. Al het andere kan verkocht worden.
     private static final Set<String> BLOCKED = Set.of(
-            "AIR", "CAVE_AIR", "VOID_AIR", "BEDROCK", "BARRIER", "LIGHT", "STRUCTURE_VOID",
-            "STRUCTURE_BLOCK", "JIGSAW", "DEBUG_STICK", "KNOWLEDGE_BOOK", "SPAWNER", "TRIAL_SPAWNER",
-            "VAULT", "REINFORCED_DEEPSLATE", "END_PORTAL_FRAME", "COMMAND_BLOCK", "CHAIN_COMMAND_BLOCK",
-            "REPEATING_COMMAND_BLOCK", "COMMAND_BLOCK_MINECART", "PLAYER_HEAD", "POTION", "SPLASH_POTION",
-            "LINGERING_POTION", "TIPPED_ARROW", "ENCHANTED_BOOK", "FILLED_MAP", "WRITTEN_BOOK",
-            "PETRIFIED_OAK_SLAB", "TEST_BLOCK", "TEST_INSTANCE_BLOCK", "FARMLAND");
+            "AIR", "CAVE_AIR", "VOID_AIR", "BARRIER", "LIGHT", "STRUCTURE_VOID",
+            "STRUCTURE_BLOCK", "JIGSAW", "DEBUG_STICK", "KNOWLEDGE_BOOK",
+            "COMMAND_BLOCK", "CHAIN_COMMAND_BLOCK", "REPEATING_COMMAND_BLOCK", "COMMAND_BLOCK_MINECART",
+            "POTION", "SPLASH_POTION", "LINGERING_POTION", "TIPPED_ARROW", "ENCHANTED_BOOK",
+            "FILLED_MAP", "WRITTEN_BOOK", "PETRIFIED_OAK_SLAB", "TEST_BLOCK", "TEST_INSTANCE_BLOCK");
 
     private record Category(String id, String name, Material icon, List<double[]> levels) { }
 
@@ -370,8 +370,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
         if (list.isEmpty()) list.add(new Category("all", "<green>Alles", Material.CHEST, base));
 
+        syncBundled("categories.yml", "categories-version");
         File f = new File(getDataFolder(), "categories.yml");
-        if (!f.exists()) saveResource("categories.yml", false);
         YamlConfiguration y = YamlConfiguration.loadConfiguration(f);
         Map<Material, Integer> map = new EnumMap<>(Material.class);
         for (int i = 0; i < list.size(); i++) {
@@ -473,13 +473,36 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private static boolean isSellableType(Material m) {
         String n = m.name();
         return m.isItem() && !m.isAir()
-                && !n.startsWith("LEGACY_") && !n.startsWith("INFESTED_")
-                && !n.endsWith("_SPAWN_EGG") && !BLOCKED.contains(n);
+                && !n.startsWith("LEGACY_") && !BLOCKED.contains(n);
+    }
+
+    /**
+     * Vervangt een bestand op schijf door de nieuwere versie uit de jar als het versienummer ("version-key")
+     * in de jar hoger is. De oude versie wordt bewaard als <naam>.bak.
+     */
+    private void syncBundled(String name, String versionKey) {
+        File file = new File(getDataFolder(), name);
+        if (!file.exists()) { saveResource(name, false); return; }
+        try (java.io.InputStream in = getResource(name)) {
+            if (in == null) return;
+            YamlConfiguration jar = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+            int jarVersion = jar.getInt(versionKey, 0);
+            int diskVersion = YamlConfiguration.loadConfiguration(file).getInt(versionKey, 0);
+            if (diskVersion < jarVersion) {
+                File bak = new File(getDataFolder(), name + ".bak");
+                java.nio.file.Files.copy(file.toPath(), bak.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                saveResource(name, true);
+                getLogger().info(name + " bijgewerkt naar versie " + jarVersion + " (oude versie staat in " + name + ".bak).");
+            }
+        } catch (Exception e) {
+            getLogger().warning("Kon " + name + " niet controleren: " + e.getMessage());
+        }
     }
 
     private void loadPrices() {
+        syncBundled("prices.yml", "prices-version");
         File file = new File(getDataFolder(), "prices.yml");
-        if (!file.exists()) saveResource("prices.yml", false);
         YamlConfiguration yml = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection sec = yml.getConfigurationSection("prices");
         if (sec == null) sec = yml.createSection("prices");
@@ -832,6 +855,11 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (pm.hasDisplayName() || pm.hasLore() || pm.hasCustomEffects()) return -1;
         PotionType pt = pm.getBasePotionType();
         if (pt == null) return -1;
+        return potionPriceFor(pt, item.getType()) * priceScale;
+    }
+
+    /** Prijs van een potion-type in een bepaalde vorm (drinkbaar, splash, lingering), zonder scale. */
+    private double potionPriceFor(PotionType pt, Material kind) {
         String key = pt.getKey().getKey().toLowerCase(Locale.ROOT);
         double mult = 1.0;
         if (key.startsWith("long_")) {
@@ -842,9 +870,9 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             mult = getConfig().getDouble("potions.strong-multiplier", 1.7);
         }
         double base = potionPrices.getOrDefault(key, getConfig().getDouble("potions.default-price", 10));
-        if (item.getType() == Material.SPLASH_POTION) mult *= getConfig().getDouble("potions.splash-multiplier", 1.25);
-        if (item.getType() == Material.LINGERING_POTION) mult *= getConfig().getDouble("potions.lingering-multiplier", 2.5);
-        return base * mult * priceScale;
+        if (kind == Material.SPLASH_POTION) mult *= getConfig().getDouble("potions.splash-multiplier", 1.25);
+        if (kind == Material.LINGERING_POTION) mult *= getConfig().getDouble("potions.lingering-multiplier", 2.5);
+        return base * mult;
     }
 
     // ---- gebruikt door WorthLore (netwerk-thread, dus alleen thread-safe dingen) ----
@@ -1119,29 +1147,34 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
 
         if (id.equals("books")) {
-            for (Map.Entry<String, Double> e : enchantPrices.entrySet()) {
-                Enchantment ench = Registry.ENCHANTMENT.get(NamespacedKey.minecraft(e.getKey()));
-                if (ench == null) continue;
-                double price = e.getValue() * priceScale * mult;
-                ItemStack it = new ItemStack(Material.ENCHANTED_BOOK);
-                it.editMeta(m -> {
-                    if (m instanceof EnchantmentStorageMeta esm) esm.addStoredEnchant(ench, 1, true);
-                    m.lore(List.of(loreLine(price)));
-                });
-                out.add(new Listed(it, price));
+            double def = getConfig().getDouble("enchanted-books.default-per-level", 50);
+            for (Enchantment ench : Registry.ENCHANTMENT) {
+                String key = ench.getKey().getKey().toLowerCase(Locale.ROOT);
+                double per = enchantPrices.getOrDefault(key, def);
+                for (int lvl = 1; lvl <= Math.max(1, ench.getMaxLevel()); lvl++) {
+                    final int level = lvl;
+                    double price = per * level * priceScale * mult;
+                    ItemStack it = new ItemStack(Material.ENCHANTED_BOOK);
+                    it.editMeta(m -> {
+                        if (m instanceof EnchantmentStorageMeta esm) esm.addStoredEnchant(ench, level, true);
+                        m.lore(List.of(loreLine(price)));
+                    });
+                    out.add(new Listed(it, price));
+                }
             }
         }
         if (id.equals("potions")) {
-            for (Map.Entry<String, Double> e : potionPrices.entrySet()) {
-                PotionType type = Registry.POTION.get(NamespacedKey.minecraft(e.getKey()));
-                if (type == null) continue;
-                double price = e.getValue() * priceScale * mult;
-                ItemStack it = new ItemStack(Material.POTION);
-                it.editMeta(m -> {
-                    if (m instanceof PotionMeta pm) pm.setBasePotionType(type);
-                    m.lore(List.of(loreLine(price), line("gui.potion-note")));
-                });
-                out.add(new Listed(it, price));
+            Material[] kinds = {Material.POTION, Material.SPLASH_POTION, Material.LINGERING_POTION};
+            for (PotionType type : Registry.POTION) {
+                for (Material kind : kinds) {
+                    double price = potionPriceFor(type, kind) * priceScale * mult;
+                    ItemStack it = new ItemStack(kind);
+                    it.editMeta(m -> {
+                        if (m instanceof PotionMeta pm) pm.setBasePotionType(type);
+                        m.lore(List.of(loreLine(price)));
+                    });
+                    out.add(new Listed(it, price));
+                }
             }
         }
 

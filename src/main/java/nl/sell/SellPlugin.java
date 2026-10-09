@@ -243,6 +243,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     // ------------------------------------------------------------------ laden / opslaan
 
     private void loadCategories() {
+        shortNumbers = getConfig().getBoolean("number-format.short", true);
         List<double[]> base = new ArrayList<>();
         ConfigurationSection ls = getConfig().getConfigurationSection("progress-levels");
         if (ls != null) {
@@ -544,19 +545,37 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (idleCheck.add(id)) scheduleIdleCheck(id);
     }
 
+    /** Hoe lang (ms) je niet meer hakt voordat het vastgehouden item de juiste worth krijgt. */
+    private long miningIdleMs() {
+        return Math.max(100, getConfig().getLong("worth-lore.mining-idle-ms", 250));
+    }
+
     /** Als je een tijdje niet meer hakt, krijgt het vastgehouden item de juiste worth weer. */
     private void scheduleIdleCheck(UUID id) {
         Bukkit.getScheduler().runTaskLater(this, () -> {
             Long last = lastMining.get(id);
-            if (last != null && System.currentTimeMillis() - last < 1000) {
+            if (last != null && System.currentTimeMillis() - last < miningIdleMs()) {
                 scheduleIdleCheck(id);
                 return;
             }
             idleCheck.remove(id);
-            if (!staleHeld.remove(id)) return;
-            Player p = Bukkit.getPlayer(id);
-            if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
-        }, 20L);
+            refreshHeldNow(id);
+        }, 2L);
+    }
+
+    /** Stuurt het inventory opnieuw, maar alleen als de worth van het vastgehouden item achterliep. */
+    private void refreshHeldNow(UUID id) {
+        if (!staleHeld.remove(id)) return;
+        Player p = Bukkit.getPlayer(id);
+        if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
+    }
+
+    /** Je laat de muisknop los of kijkt naar een ander blok: direct bijwerken, geen wachttijd. */
+    @EventHandler
+    public void onDamageAbort(org.bukkit.event.block.BlockDamageAbortEvent e) {
+        UUID id = e.getPlayer().getUniqueId();
+        lastMining.remove(id);
+        Bukkit.getScheduler().runTask(this, () -> refreshHeldNow(id));
     }
 
     @EventHandler
@@ -772,7 +791,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     Double frozenTotal(UUID id, int slot, Material type) {
         if (!heldMode().equals("freeze")) return null;
         Long last = lastMining.get(id);
-        if (last == null || System.currentTimeMillis() - last > 1500) return null;
+        if (last == null || System.currentTimeMillis() - last > miningIdleMs() + 150) return null;
         HeldLore h = heldLore.get(id);
         if (h == null || h.slot() != slot || h.type() != type) return null;
         staleHeld.add(id);
@@ -1526,7 +1545,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         recordSale(id, money, count, money / baseTotal, tallied);
         player.sendMessage(msg("sold",
                 "{items}", String.valueOf(count),
-                "{money}", String.format(Locale.US, "%,.2f", money),
+                "{money}", fmt(money),
                 "{multiplier}", fmt(money / baseTotal)));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 
@@ -1541,8 +1560,29 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         refreshPlayer(player, true);
     }
 
-    private static String fmt(double d) {
+    /** Zet op false in config (number-format.short) om volledige getallen te tonen. */
+    private static volatile boolean shortNumbers = true;
+
+    private static String fmtExact(double d) {
         String s = String.format(Locale.US, "%,.2f", d);
         return s.contains(".") ? s.replaceAll("0+$", "").replaceAll("\\.$", "") : s;
+    }
+
+    /** 999 -> 999, 1500 -> 1.5k, 2500000 -> 2.5m, 3e9 -> 3b, 4e12 -> 4t */
+    private static String fmt(double d) {
+        if (!shortNumbers || Math.round(Math.abs(d) * 100) / 100.0 < 1000) return fmtExact(d);
+        String[] suffix = {"k", "m", "b", "t"};
+        double v = d;
+        int idx = -1;
+        while (Math.abs(v) >= 1000 && idx < suffix.length - 1) {
+            v /= 1000;
+            idx++;
+        }
+        // 999.999k wordt afgerond naar 1000k: dan door naar de volgende letter
+        if (Math.round(Math.abs(v) * 100) / 100.0 >= 1000 && idx < suffix.length - 1) {
+            v /= 1000;
+            idx++;
+        }
+        return fmtExact(v) + suffix[idx];
     }
 }

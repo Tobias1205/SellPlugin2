@@ -180,10 +180,18 @@ worth-lore:
   #   hide   = geen worth op het vastgehouden item
   #   normal = altijd direct bijwerken (hakken kan heel even resetten bij het oppakken van items)
   held-slot: freeze
+  # Bij held-slot: freeze. Hoeveel milliseconden je moet stoppen met hakken voordat de worth van het
+  # vastgehouden item bijgewerkt wordt. Lager = sneller bijwerken, maar een korte pauze tijdens
+  # het hakken kan dan een reset geven. Loslaten van de muisknop werkt altijd direct bij.
+  mining-idle-ms: 250
   format: "<!italic><gray>Worth <green>${price}"
 
 # Alle teksten in de menu's worden automatisch in kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) getoond.
 # Kleurenschema: titels dark_gray, labels gray, waardes green, acties yellow.
+# Getallen kort tonen: 1500 = 1.5k, 2000000 = 2m, 3000000000 = 3b, 4000000000000 = 4t
+number-format:
+  short: true
+
 history:
   max-entries: 200
   date-format: "dd-MM HH:mm"

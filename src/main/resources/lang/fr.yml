@@ -1,6 +1,9 @@
 # SellPlugin - Français
 # Tags zoals <green> en placeholders zoals {money} niet aanpassen / do not change tags and {placeholders}.
 # Kleine hoofdletters in de menu's worden automatisch toegepast (zie small-caps in config.yml).
+# <theme>...</theme> = kleurverloop uit config.yml (theme-colors). Verhoog lang-version niet zelf.
+
+lang-version: 3
 
 categories:
   crops: "Cultures"
@@ -56,27 +59,27 @@ gui:
   history-empty: "<!italic><gray>Rien de vendu pour l'instant"
 
 messages:
-  sold: "<green>Tu as vendu <white>{items}</white> objets pour <yellow>${money}</yellow> <gray>(x{multiplier})"
-  category-levelup: "<gold><bold>NIVEAU SUPÉRIEUR !</bold> <white>{category}</white> <yellow>multiplicateur maintenant x{progress}</yellow>"
+  sold: "<gray>Tu as vendu <white>{items}</white> objets pour <theme>${money}</theme>"
+  category-levelup: "<theme><bold>NIVEAU SUPÉRIEUR !</bold> </theme><white>{category}</white> <theme>multiplicateur maintenant x{progress}</theme>"
   no-permission: "<red>Pas de permission."
-  reloaded: "<green>Config et prix rechargés."
-  multipliers-header: "<green>Tes multiplicateurs <gray>(global x{global})"
-  multiplier-line: "<gray>- {category}<gray>: <yellow>x{multiplier} <dark_gray>(niveau x{progress})"
-  worth-hand: "<yellow>{item}</yellow> <gray>- Valeur <green>${stack}</green> <dark_gray>(x{multiplier})"
+  reloaded: "<theme>Config et prix rechargés.</theme>"
+  multipliers-header: "<theme>Tes multiplicateurs </theme><gray>(global x{global})"
+  multiplier-line: "<gray>- {category}<gray>: <theme>x{multiplier} </theme><dark_gray>(niveau x{progress})"
+  worth-hand: "<theme>{item}</theme> <gray>- Valeur <theme>${stack}</theme> <dark_gray>(x{multiplier})"
   not-sellable: "<red>Cet objet ne peut pas être vendu."
   hold-item: "<red>Tiens un objet en main."
-  global-set: "<green>Le multiplicateur global est maintenant x{multiplier}."
+  global-set: "<theme>Le multiplicateur global est maintenant x{multiplier}.</theme>"
   usage-global: "<red>Utilisation : /sell global [nombre]"
-  worth-lookup: "<yellow>{item}</yellow> <gray>- Valeur <green>${price}</green> <dark_gray>({category}<dark_gray>, x{multiplier})"
-  worth-special: "<yellow>{item}</yellow> <gray>- le prix dépend du type. Regarde dans <white>/worth</white> sous {category}"
+  worth-lookup: "<theme>{item}</theme> <gray>- Valeur <theme>${price}</theme> <dark_gray>({category}<dark_gray>, x{multiplier})"
+  worth-special: "<theme>{item}</theme> <gray>- le prix dépend du type. Regarde dans <white>/worth</white> sous {category}"
   worth-none: "<red>Aucun objet trouvé avec ce nom."
   worth-many: "<gray>{count} objets trouvés, sois plus précis. Par exemple : <white>{list}"
   players-only: "<red>Seuls les joueurs peuvent utiliser ceci."
   usage-worth: "<red>Utilisation : /worth [objet]"
   language-current: "<gray>Langue : <white>{language} <gray>(disponibles : <white>{list}<gray>)"
-  language-set: "<green>Langue réglée sur <white>{language}<green>."
+  language-set: "<theme>Langue réglée sur </theme><white>{language}<theme>.</theme>"
   language-unknown: "<red>Langue inconnue. Disponibles : <white>{list}"
-  status-title: "<yellow>Statut de SellPlugin"
+  status-title: "<theme>Statut de SellPlugin</theme>"
   status-packetevents: "<gray>PacketEvents trouvé : {state}"
   status-lore: "<gray>Infobulle de valeur active : {state}"
   status-lore-count: "<gray>Objets envoyés avec infobulle : <white>{count}"

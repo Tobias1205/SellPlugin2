@@ -263,8 +263,25 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         File dir = new File(getDataFolder(), "lang");
         dir.mkdirs();
         for (String l : BUNDLED_LANGS) {
-            if (!new File(dir, l + ".yml").exists()) {
-                try { saveResource("lang/" + l + ".yml", false); } catch (IllegalArgumentException ignored) { }
+            File lf = new File(dir, l + ".yml");
+            try {
+                if (!lf.exists()) {
+                    saveResource("lang/" + l + ".yml", false);
+                    continue;
+                }
+                // Nieuwere ingebouwde versie? Oud bestand bewaren als .bak en het nieuwe neerzetten.
+                YamlConfiguration jar = readJarLang(l);
+                int jarVersion = jar == null ? 0 : jar.getInt("lang-version", 1);
+                int diskVersion = YamlConfiguration.loadConfiguration(lf).getInt("lang-version", 0);
+                if (diskVersion < jarVersion) {
+                    java.nio.file.Files.copy(lf.toPath(), new File(dir, l + ".yml.bak").toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    saveResource("lang/" + l + ".yml", true);
+                    getLogger().info("Taalbestand " + l + ".yml bijgewerkt naar versie " + jarVersion
+                            + " (je oude versie staat in " + l + ".yml.bak).");
+                }
+            } catch (IOException | IllegalArgumentException e) {
+                getLogger().warning("Kon taalbestand " + l + ".yml niet bijwerken: " + e.getMessage());
             }
         }
         File f = new File(dir, code + ".yml");
@@ -936,7 +953,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private Component title(String path, String... replacements) {
         String s = scMini(str(path));
         for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
-        return MM.deserialize(s);
+        return MM.deserialize(applyTheme(s));
     }
 
     private String str(String path) {
@@ -946,7 +963,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private Component line(String path, String... replacements) {
         String s = scMini(str(path));
         for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
-        return MM.deserialize(s);
+        return MM.deserialize(applyTheme(s));
     }
 
     private ItemStack categoryIcon(Player p, int cat, String clickKey) {
@@ -1366,10 +1383,33 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     // ------------------------------------------------------------------ command
 
+    /**
+     * Vervangt <theme>...</theme> in teksten door de themakleuren uit config.yml (theme-colors).
+     * Meerdere kleuren = een kleurverloop (gradient), een enkele kleur = effen kleur.
+     */
+    private String applyTheme(String s) {
+        if (!s.contains("<theme>")) return s;
+        List<String> colors = new ArrayList<>();
+        for (String c : getConfig().getStringList("theme-colors")) {
+            if (c != null && c.matches("#[0-9a-fA-F]{6}")) colors.add(c);
+        }
+        if (colors.isEmpty()) colors = List.of("#FFB347", "#FFA531", "#FF981B", "#FF8C00");
+        String open;
+        String close;
+        if (colors.size() == 1) {
+            open = "<" + colors.get(0) + ">";
+            close = "</" + colors.get(0) + ">";
+        } else {
+            open = "<gradient:" + String.join(":", colors) + ">";
+            close = "</gradient>";
+        }
+        return s.replace("<theme>", open).replace("</theme>", close);
+    }
+
     private Component msg(String key, String... replacements) {
         String s = tr("messages." + key, key);
         for (int i = 0; i + 1 < replacements.length; i += 2) s = s.replace(replacements[i], replacements[i + 1]);
-        return MM.deserialize(s);
+        return MM.deserialize(applyTheme(s));
     }
 
     @Override
@@ -1633,8 +1673,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         recordSale(id, money, count, money / baseTotal, tallied);
         player.sendMessage(msg("sold",
                 "{items}", String.valueOf(count),
-                "{money}", fmt(money),
-                "{multiplier}", fmt(money / baseTotal)));
+                "{money}", fmt(money)));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1f);
 
         for (int i = 0; i < n; i++) {

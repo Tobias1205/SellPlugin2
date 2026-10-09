@@ -3,6 +3,15 @@
 # naar bv. it.yml, vertaal de teksten en zet hier de code. Aanpassen kan ook in game: /sell language <code>
 language: nl
 
+# Themakleuren van de plugin in de chat (hexcodes met #). Met meerdere kleuren loopt de tekst over van de
+# eerste naar de laatste kleur (kleurverloop). Met een enkele kleur wordt het een effen kleur.
+# Wordt gebruikt voor bedragen, titels en accenten in chatberichten.
+theme-colors:
+  - "#FFB347"
+  - "#FFA531"
+  - "#FF981B"
+  - "#FF8C00"
+
 # Kleine hoofdletters (ᴅɪᴛ ʟᴇᴛᴛᴇʀᴛʏᴘᴇ) in de menu's en de Worth-tekst. Zet op false voor gewone letters.
 small-caps: true
 

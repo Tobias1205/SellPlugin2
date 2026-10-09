@@ -1,6 +1,9 @@
 # SellPlugin - Nederlands
 # Tags zoals <green> en placeholders zoals {money} niet aanpassen / do not change tags and {placeholders}.
 # Kleine hoofdletters in de menu's worden automatisch toegepast (zie small-caps in config.yml).
+# <theme>...</theme> = kleurverloop uit config.yml (theme-colors). Verhoog lang-version niet zelf.
+
+lang-version: 3
 
 categories:
   crops: "Crops"
@@ -56,27 +59,27 @@ gui:
   history-empty: "<!italic><gray>Nog niets verkocht"
 
 messages:
-  sold: "<green>Je hebt <white>{items}</white> items verkocht voor <yellow>${money}</yellow> <gray>(x{multiplier})"
-  category-levelup: "<gold><bold>LEVEL UP!</bold> <white>{category}</white> <yellow>multiplier is nu x{progress}</yellow>"
+  sold: "<gray>Je hebt <white>{items}</white> items verkocht voor <theme>${money}</theme>"
+  category-levelup: "<theme><bold>LEVEL UP!</bold> </theme><white>{category}</white> <theme>multiplier is nu x{progress}</theme>"
   no-permission: "<red>Geen permissie."
-  reloaded: "<green>Config en prijzen herladen."
-  multipliers-header: "<green>Jouw multipliers <gray>(global x{global})"
-  multiplier-line: "<gray>- {category}<gray>: <yellow>x{multiplier} <dark_gray>(level x{progress})"
-  worth-hand: "<yellow>{item}</yellow> <gray>- Worth <green>${stack}</green> <dark_gray>(x{multiplier})"
+  reloaded: "<theme>Config en prijzen herladen.</theme>"
+  multipliers-header: "<theme>Jouw multipliers </theme><gray>(global x{global})"
+  multiplier-line: "<gray>- {category}<gray>: <theme>x{multiplier} </theme><dark_gray>(level x{progress})"
+  worth-hand: "<theme>{item}</theme> <gray>- Worth <theme>${stack}</theme> <dark_gray>(x{multiplier})"
   not-sellable: "<red>Dit item kan niet verkocht worden."
   hold-item: "<red>Hou een item vast."
-  global-set: "<green>Global multiplier staat nu op x{multiplier}."
+  global-set: "<theme>Global multiplier staat nu op x{multiplier}.</theme>"
   usage-global: "<red>Gebruik: /sell global [getal]"
-  worth-lookup: "<yellow>{item}</yellow> <gray>- Worth <green>${price}</green> <dark_gray>({category}<dark_gray>, x{multiplier})"
-  worth-special: "<yellow>{item}</yellow> <gray>- de prijs hangt af van het type. Kijk in <white>/worth</white> bij {category}"
+  worth-lookup: "<theme>{item}</theme> <gray>- Worth <theme>${price}</theme> <dark_gray>({category}<dark_gray>, x{multiplier})"
+  worth-special: "<theme>{item}</theme> <gray>- de prijs hangt af van het type. Kijk in <white>/worth</white> bij {category}"
   worth-none: "<red>Geen item gevonden met die naam."
   worth-many: "<gray>{count} items gevonden, wees specifieker. Bijvoorbeeld: <white>{list}"
   players-only: "<red>Alleen spelers kunnen dit gebruiken."
   usage-worth: "<red>Gebruik: /worth [item]"
   language-current: "<gray>Taal: <white>{language} <gray>(beschikbaar: <white>{list}<gray>)"
-  language-set: "<green>Taal ingesteld op <white>{language}<green>."
+  language-set: "<theme>Taal ingesteld op </theme><white>{language}<theme>.</theme>"
   language-unknown: "<red>Onbekende taal. Beschikbaar: <white>{list}"
-  status-title: "<yellow>SellPlugin status"
+  status-title: "<theme>SellPlugin status</theme>"
   status-packetevents: "<gray>PacketEvents gevonden: {state}"
   status-lore: "<gray>Worth-tooltip actief: {state}"
   status-lore-count: "<gray>Items met tooltip verstuurd: <white>{count}"

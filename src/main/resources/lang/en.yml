@@ -3,7 +3,7 @@
 # Kleine hoofdletters in de menu's worden automatisch toegepast (zie small-caps in config.yml).
 # <theme>...</theme> = kleurverloop uit config.yml (theme-colors). Verhoog lang-version niet zelf.
 
-lang-version: 3
+lang-version: 4
 
 categories:
   crops: "Crops"
@@ -59,7 +59,7 @@ gui:
   history-empty: "<!italic><gray>Nothing sold yet"
 
 messages:
-  sold: "<gray>You sold <white>{items}</white> items for <theme>${money}</theme>"
+  sold: "<theme>You sold {items} items for </theme><#00AA00>${money}</#00AA00>"
   category-levelup: "<theme><bold>LEVEL UP!</bold> </theme><white>{category}</white> <theme>multiplier is now x{progress}</theme>"
   no-permission: "<red>No permission."
   reloaded: "<theme>Config and prices reloaded.</theme>"

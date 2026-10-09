@@ -27,6 +27,7 @@ fallback-price: 1.0
 # Gerekend wordt met het totaal verkochte bedrag (zonder multiplier).
 max-multiplier: 3.0
 
+# LET OP: de levels staan nu in multipliers.yml. Deze lijst wordt alleen gebruikt voor categorieen die daar ontbreken.
 # Levels per categorie: "totaal verkocht": multiplier
 # x1.0 is het startpunt (het icoon bovenaan). Elk level hieronder is een glasplaatje op de kronkel
 # in het progress-menu, dus houd het bij maximaal 20 levels (x1.1 t/m x3.0).

@@ -327,6 +327,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (base.isEmpty()) base.add(new double[]{0, 1.0});
         base.sort(Comparator.comparingDouble(a -> a[0]));
 
+        // multipliers.yml: eigen levels per categorie (heeft voorrang op progress-levels + scale uit config.yml)
+        File mfile = new File(getDataFolder(), "multipliers.yml");
+        if (!mfile.exists()) {
+            try { saveResource("multipliers.yml", false); } catch (IllegalArgumentException ignored) { }
+        }
+        YamlConfiguration mult = YamlConfiguration.loadConfiguration(mfile);
+        double baseMult = mult.getDouble("base-multiplier", 1.0);
+
         String color = getConfig().getString("category-name-color", "<gray>");
         List<Category> list = new ArrayList<>();
         ConfigurationSection cs = getConfig().getConfigurationSection("categories");
@@ -340,6 +348,23 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 double scale = Math.max(0.0001, c.getDouble("scale", 1.0));
                 List<double[]> lv = new ArrayList<>();
                 for (double[] b : base) lv.add(new double[]{(double) Math.round(b[0] * scale), b[1]});
+                ConfigurationSection ms = mult.getConfigurationSection(key);
+                if (ms != null) {
+                    List<double[]> custom = new ArrayList<>();
+                    for (String lk : ms.getKeys(false)) {
+                        ConfigurationSection e = ms.getConfigurationSection(lk);
+                        if (e == null) continue;
+                        double need = e.getDouble("amountNeeded", -1);
+                        double m = e.getDouble("multi", -1);
+                        if (need < 0 || m <= 0) continue;
+                        custom.add(new double[]{need, m});
+                    }
+                    if (!custom.isEmpty()) {
+                        custom.sort(Comparator.comparingDouble(a -> a[0]));
+                        if (custom.get(0)[0] > 0) custom.add(0, new double[]{0, baseMult});
+                        lv = custom;
+                    }
+                }
                 list.add(new Category(key, color + sc(MM.stripTags(tr("categories." + key, c.getString("name", key)))), icon, lv));
             }
         }

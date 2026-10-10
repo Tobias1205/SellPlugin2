@@ -3,7 +3,7 @@
 # Kleine hoofdletters in de menu's worden automatisch toegepast (zie small-caps in config.yml).
 # <theme>...</theme> = kleurverloop uit config.yml (theme-colors). Verhoog lang-version niet zelf.
 
-lang-version: 4
+lang-version: 5
 
 categories:
   crops: "Crops"
@@ -83,6 +83,7 @@ messages:
   status-packetevents: "<gray>PacketEvents found: {state}"
   status-lore: "<gray>Worth tooltip active: {state}"
   status-lore-count: "<gray>Items sent with tooltip: <white>{count}"
+  status-owners: "<gray>/sell is owned by: <white>{sell} <gray>| /worth is owned by: <white>{worth}"
   status-last-error: "<gray>Last error: <white>{error}"
   status-creative: "<gray>You in creative (no tooltip): {state}"
   state-yes: "<green>yes"

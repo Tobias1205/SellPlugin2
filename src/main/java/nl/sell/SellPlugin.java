@@ -1246,7 +1246,18 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         return ih.query != null ? buildSearch(p, ih.query, page) : buildItems(p, ih.category, page, ih.worthMode);
     }
 
+    /** Itemnaam in de taal van de speler (de client vertaalt dit zelf). */
+    private static String itemTag(Material m) {
+        try {
+            return "<lang:" + m.translationKey() + ">";
+        } catch (Throwable t) {
+            return sc(m.name().toLowerCase(Locale.ROOT).replace('_', ' '));
+        }
+    }
+
     private static String niceName(String material) {
+        Material m = Material.matchMaterial(material);
+        if (m != null) return itemTag(m);
         return sc(material.toLowerCase(Locale.ROOT).replace('_', ' '));
     }
 
@@ -1599,7 +1610,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (!sender.hasPermission("sell.admin")) { sender.sendMessage(msg("no-permission")); return true; }
             boolean pe = getServer().getPluginManager().isPluginEnabled("packetevents");
             sender.sendMessage(msg("status-title"));
-            sender.sendMessage(Component.text("/sell: " + ownerOf("sell") + "  |  /worth: " + ownerOf("worth")));
+            sender.sendMessage(msg("status-owners", "{sell}", MM.escapeTags(ownerOf("sell")), "{worth}", MM.escapeTags(ownerOf("worth"))));
             sender.sendMessage(msg("status-packetevents", "{state}", tr("messages." + (pe ? "state-yes" : "state-no-install"), "")));
             sender.sendMessage(msg("status-lore", "{state}", tr("messages." + (worthLore != null ? "state-yes" : "state-no"), "")));
             sender.sendMessage(msg("status-lore-count", "{count}", String.valueOf(loreApplied.get())));
@@ -1682,7 +1693,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (total < 0) { player.sendMessage(msg("not-sellable")); return true; }
             double mult = mults[categoryIndex(hand.getType())];
             player.sendMessage(msg("worth-hand",
-                    "{item}", hand.getType().name().toLowerCase(Locale.ROOT).replace('_', ' '),
+                    "{item}", itemTag(hand.getType()),
                     "{multiplier}", fmt(mult),
                     "{stack}", fmt(total)));
             return true;
@@ -1719,7 +1730,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (isSpecialPriced(m)) cat = categories.stream().map(Category::id).toList()
                     .indexOf(m == Material.ENCHANTED_BOOK ? "books" : "potions");
             if (cat < 0) cat = defaultCategory;
-            String name = m.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+            String name = itemTag(m);
             double mult = player != null ? computeMultipliers(player)[cat] : 1.0;
             if (isSpecialPriced(m)) {
                 sender.sendMessage(msg("worth-special", "{item}", name, "{category}", categories.get(cat).name()));

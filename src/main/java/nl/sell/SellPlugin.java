@@ -1340,6 +1340,18 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     // ------------------------------------------------------------------ menu events
 
+    private void playClick(Player p) {
+        if (!getConfig().getBoolean("sounds.enabled", true)) return;
+        float vol = (float) getConfig().getDouble("sounds.volume", 0.8);
+        p.playSound(p.getLocation(), org.bukkit.Sound.UI_BUTTON_CLICK, org.bukkit.SoundCategory.MASTER, vol, 1.0f);
+    }
+
+    private void playPage(Player p) {
+        if (!getConfig().getBoolean("sounds.enabled", true)) return;
+        float vol = (float) getConfig().getDouble("sounds.volume", 0.8);
+        p.playSound(p.getLocation(), org.bukkit.Sound.ITEM_BOOK_PAGE_TURN, org.bukkit.SoundCategory.MASTER, vol, 1.0f);
+    }
+
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (!(e.getWhoClicked() instanceof Player player)) return;
@@ -1351,11 +1363,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             e.setCancelled(true);
             if (e.getClickedInventory() != top) return;
             if (e.getRawSlot() == BACK_SLOT) {
+                playClick(player);
                 UUID id = player.getUniqueId();
                 ItemStack[] items = stash.remove(id);
                 switching.add(id);
                 Bukkit.getScheduler().runTask(this, () -> openSell(player, items));
             } else if (e.getRawSlot() == PROGRESS_ICON_SLOT) {
+                playClick(player);
                 switchMenu(player, () -> buildItems(player, ph.category, 0, false));
             }
             return;
@@ -1366,10 +1380,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (e.getClickedInventory() != top) return;
             int raw = e.getRawSlot();
             if (raw == NAV_PREV && hh.page > 0) {
+                playPage(player);
                 switchMenu(player, () -> buildHistory(player, hh.page - 1));
             } else if (raw == NAV_NEXT && hh.hasNext) {
+                playPage(player);
                 switchMenu(player, () -> buildHistory(player, hh.page + 1));
             } else if (raw == NAV_BACK) {
+                playClick(player);
                 switching.add(player.getUniqueId());
                 Bukkit.getScheduler().runTask(this, () -> openSell(player, null));
             }
@@ -1381,6 +1398,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (e.getClickedInventory() != top) return;
             int cat = e.getRawSlot() - 9;
             if (cat >= 0 && cat < categories.size() && cat < 9) {
+                playClick(player);
                 switchMenu(player, () -> buildItems(player, cat, 0, true));
             }
             return;
@@ -1391,10 +1409,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
             if (e.getClickedInventory() != top) return;
             int raw = e.getRawSlot();
             if (raw == NAV_PREV && ih.page > 0) {
+                playPage(player);
                 switchMenu(player, () -> rebuild(player, ih, ih.page - 1));
             } else if (raw == NAV_NEXT && ih.hasNext) {
+                playPage(player);
                 switchMenu(player, () -> rebuild(player, ih, ih.page + 1));
             } else if (raw == NAV_BACK) {
+                playClick(player);
                 if (ih.query != null) Bukkit.getScheduler().runTask(this, () -> player.closeInventory());
                 else switchMenu(player, () -> ih.worthMode ? buildWorthHome(player) : buildProgress(player, ih.category));
             }
@@ -1407,6 +1428,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 e.setCancelled(true);
                 int cat = raw - ITEM_SLOTS;
                 if (cat < categories.size() && (e.getClick().isLeftClick() || e.getClick().isRightClick())) {
+                    playClick(player);
                     ItemStack[] copy = new ItemStack[ITEM_SLOTS];
                     for (int i = 0; i < ITEM_SLOTS; i++) {
                         ItemStack it = top.getItem(i);

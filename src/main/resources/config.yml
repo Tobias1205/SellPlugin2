@@ -203,3 +203,9 @@ number-format:
 history:
   max-entries: 200
   date-format: "dd-MM HH:mm"
+
+# ---- Geluiden in de menu's ----
+# Klik = geluid van een trade aanklikken bij een villager, bladeren = pagina omslaan (zoals een lectern)
+sounds:
+  enabled: true
+  volume: 0.8

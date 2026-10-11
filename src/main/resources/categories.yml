@@ -1,7 +1,9 @@
 # Welke categorie bij welk item hoort. Items die hier niet in staan komen in "default-category" (config.yml).
-categories-version: 3
+categories-version: 4
 items:
   crops:
+    - HAY_BLOCK
+    - DRIED_KELP_BLOCK
     - BLUE_EGG
     - BROWN_EGG
     - CACTUS_FLOWER
@@ -63,6 +65,7 @@ items:
     - RABBIT
     - COOKED_RABBIT
   ores:
+    - COPPER_BLOCK
     - BUDDING_AMETHYST
     - COPPER_NUGGET
     - COAL
@@ -121,6 +124,8 @@ items:
     - GLOWSTONE_DUST
     - FLINT
   mobs:
+    - SLIME_BLOCK
+    - BONE_BLOCK
     - FIRE_CHARGE
     - ENDER_DRAGON_SPAWN_EGG
     - WITHER_SPAWN_EGG
@@ -374,7 +379,6 @@ items:
     - MYCELIUM
     - COARSE_DIRT
     - ROOTED_DIRT
-    - DIRT_PATH
     - DIRT
     - SAND
     - RED_SAND
@@ -1104,12 +1108,8 @@ items:
     - COBWEB
     - SEA_LANTERN
     - GLOWSTONE
-    - BONE_BLOCK
-    - SLIME_BLOCK
     - HONEY_BLOCK
     - HONEYCOMB_BLOCK
-    - HAY_BLOCK
-    - DRIED_KELP_BLOCK
     - SCAFFOLDING
     - IRON_BARS
     - IRON_CHAIN
@@ -1123,7 +1123,6 @@ items:
     - SOUL_CAMPFIRE
     - FLOWER_POT
     - DECORATED_POT
-    - COPPER_BLOCK
     - CUT_COPPER
     - CUT_COPPER_STAIRS
     - CUT_COPPER_SLAB

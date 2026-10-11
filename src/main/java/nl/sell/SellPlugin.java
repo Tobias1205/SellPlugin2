@@ -755,7 +755,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         double enchantBonus = 0;
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
-            if (meta.hasDisplayName() || meta.hasLore()) return -1;
+            if (meta.hasLore()) return -1;   // een eigen naam (anvil) mag wel, extra tekst van andere plugins niet
             if (meta.hasEnchants()) {
                 // enchants maken het item meer waard, afhankelijk van enchant en level
                 enchantBonus = enchantValue(meta.getEnchants())
@@ -835,7 +835,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private double enchantedBookPrice(ItemStack item) {
         if (!(item.getItemMeta() instanceof EnchantmentStorageMeta esm)) return -1;
-        if (esm.hasDisplayName() || esm.hasLore()) return -1;
+        if (esm.hasLore()) return -1;
         Map<Enchantment, Integer> stored = esm.getStoredEnchants();
         if (stored.isEmpty()) return -1;
         return enchantValue(stored) * priceScale;
@@ -854,7 +854,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private double potionPrice(ItemStack item) {
         if (!(item.getItemMeta() instanceof PotionMeta pm)) return -1;
-        if (pm.hasDisplayName() || pm.hasLore() || pm.hasCustomEffects()) return -1;
+        if (pm.hasLore() || pm.hasCustomEffects()) return -1;
         PotionType pt = pm.getBasePotionType();
         if (pt == null) return -1;
         return potionPriceFor(pt, item.getType()) * priceScale;

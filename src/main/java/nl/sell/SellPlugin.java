@@ -382,6 +382,9 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 if (m != null) map.putIfAbsent(m, i);
             }
         }
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).id().equals("potions")) map.putIfAbsent(Material.TIPPED_ARROW, i);
+        }
         String def = getConfig().getString("default-category", "decor");
         int defIdx = list.size() - 1;
         for (int i = 0; i < list.size(); i++) if (list.get(i).id().equals(def)) defIdx = i;
@@ -748,6 +751,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         if (type == Material.POTION || type == Material.SPLASH_POTION || type == Material.LINGERING_POTION) {
             return potionPrice(item);
         }
+        if (type == Material.TIPPED_ARROW) return tippedArrowPrice(item);
         Double base = prices.get(item.getType());
         if (base == null || base <= 0) return -1;
 
@@ -877,6 +881,22 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         return base * mult;
     }
 
+    /** Prijs van een tipped arrow: 8 arrows + 1 lingering potion geven 8 tipped arrows (plus een kleine toeslag). */
+    private double tippedArrowPrice(ItemStack item) {
+        if (!(item.getItemMeta() instanceof PotionMeta pm)) return -1;
+        if (pm.hasLore() || pm.hasCustomEffects()) return -1;
+        PotionType pt = pm.getBasePotionType();
+        if (pt == null) return -1;
+        return tippedArrowBase(pt) * priceScale;
+    }
+
+    private double tippedArrowBase(PotionType pt) {
+        double arrow = prices.getOrDefault(Material.ARROW, 1.0);
+        double lingering = potionPriceFor(pt, Material.LINGERING_POTION);
+        double premium = getConfig().getDouble("potions.tipped-arrow-multiplier", 1.25);
+        return (8 * arrow + lingering) / 8.0 * premium;
+    }
+
     // ---- gebruikt door WorthLore (netwerk-thread, dus alleen thread-safe dingen) ----
 
     void onLoreApplied() { loreApplied.incrementAndGet(); }
@@ -889,14 +909,31 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         }
     }
 
-    /** Stuurt het hele inventory opnieuw (met tooltips) nadat de server een los slot heeft bijgewerkt. */
+    /**
+     * Stuurt het hele inventory opnieuw (met tooltips) nadat de server een los slot heeft bijgewerkt.
+     * Zolang de speler items op zijn cursor heeft (bv. rechtermuisknop ingedrukt houden om items te
+     * verdelen in een crafting table) wordt er NIET opnieuw gestuurd, want dat onderbreekt het verdelen.
+     */
     void resyncInventory(UUID id) {
         if (!shouldShowLore(id) || !resyncPending.add(id)) return;
+        scheduleResync(id, 0);
+    }
+
+    private void scheduleResync(UUID id, int attempt) {
         Bukkit.getScheduler().runTaskLater(this, () -> {
-            resyncPending.remove(id);
             Player p = Bukkit.getPlayer(id);
-            if (p != null && p.isOnline() && shouldShowLore(id)) p.updateInventory();
-        }, 2L);
+            if (p == null || !p.isOnline() || !shouldShowLore(id)) {
+                resyncPending.remove(id);
+                return;
+            }
+            ItemStack cursor = p.getItemOnCursor();
+            if (cursor != null && !cursor.getType().isAir() && attempt < 40) {
+                scheduleResync(id, attempt + 1);   // later opnieuw proberen, speler is nog items aan het verplaatsen
+                return;
+            }
+            resyncPending.remove(id);
+            p.updateInventory();
+        }, attempt == 0 ? 2L : 5L);
     }
 
     private String heldMode() {
@@ -1177,6 +1214,13 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                     });
                     out.add(new Listed(it, price));
                 }
+                double arrowPrice = tippedArrowBase(type) * priceScale * mult;
+                ItemStack arrow = new ItemStack(Material.TIPPED_ARROW);
+                arrow.editMeta(m -> {
+                    if (m instanceof PotionMeta pm) pm.setBasePotionType(type);
+                    m.lore(List.of(loreLine(arrowPrice)));
+                });
+                out.add(new Listed(arrow, arrowPrice));
             }
         }
 
@@ -1667,7 +1711,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     private boolean isSpecialPriced(Material m) {
         return m == Material.ENCHANTED_BOOK || m == Material.POTION
-                || m == Material.SPLASH_POTION || m == Material.LINGERING_POTION;
+                || m == Material.SPLASH_POTION || m == Material.LINGERING_POTION || m == Material.TIPPED_ARROW;
     }
 
     private boolean handleWorth(CommandSender sender, String[] args) {

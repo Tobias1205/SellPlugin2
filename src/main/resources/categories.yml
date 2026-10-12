@@ -1,5 +1,5 @@
 # Welke categorie bij welk item hoort. Items die hier niet in staan komen in "default-category" (config.yml).
-categories-version: 4
+categories-version: 5
 items:
   crops:
     - HAY_BLOCK
@@ -652,6 +652,7 @@ items:
     - POTION
     - SPLASH_POTION
     - LINGERING_POTION
+    - TIPPED_ARROW
   blocks:
     - OAK_SHELF
     - SPRUCE_SHELF

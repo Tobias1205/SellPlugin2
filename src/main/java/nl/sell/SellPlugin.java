@@ -105,6 +105,8 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private volatile Map<String, Double> potionPrices = new ConcurrentHashMap<>();
     private final AtomicLong loreApplied = new AtomicLong();
     private final Set<UUID> resyncPending = ConcurrentHashMap.newKeySet();
+    private NamespacedKey menuKey;
+    private final Map<UUID, org.bukkit.event.inventory.InventoryType> openType = new ConcurrentHashMap<>();
     private volatile String lastLoreError = "geen";
 
     private final Map<UUID, double[]> soldTotals = new ConcurrentHashMap<>();      // per categorie
@@ -759,6 +761,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         double enchantBonus = 0;
         if (item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
+            if (isMenuItem(meta)) return -1;
             if (meta.hasLore()) return -1;   // een eigen naam (anvil) mag wel, extra tekst van andere plugins niet
             if (meta.hasEnchants()) {
                 // enchants maken het item meer waard, afhankelijk van enchant en level
@@ -948,6 +951,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     /** Alleen bij held-slot: hide. Dan krijgt het vastgehouden item nooit een worth-regel. */
     boolean skipSlot(UUID id, int windowId, int slot) {
+        // Crafting-roosters krijgen geen tooltip: de client kan een stapel op je cursor anders niet
+        // meer verdelen over slots met een andere tekst (rechtermuisknop ingedrukt houden).
+        if (windowId == 0 && slot <= 4) return true;
+        if (windowId != 0 && slot <= 9 && openType.get(id) == org.bukkit.event.inventory.InventoryType.WORKBENCH) return true;
         return heldMode().equals("hide") && isHeldSlot(id, windowId, slot);
     }
 
@@ -1086,6 +1093,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         it.editMeta(m -> {
             m.displayName(MM.deserialize("<!italic>" + c.name()));
             m.lore(lore);
+            markMenu(m);
         });
         return it;
     }
@@ -1108,11 +1116,23 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         p.openInventory(holder.inv);
     }
 
+    /** Markeert een menu-item van deze plugin: dat heeft nooit een prijs en is niet verkoopbaar. */
+    private void markMenu(ItemMeta m) {
+        if (menuKey == null) menuKey = new NamespacedKey(this, "menu");
+        m.getPersistentDataContainer().set(menuKey, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+    }
+
+    private boolean isMenuItem(ItemMeta m) {
+        if (menuKey == null) menuKey = new NamespacedKey(this, "menu");
+        return m.getPersistentDataContainer().has(menuKey, org.bukkit.persistence.PersistentDataType.BYTE);
+    }
+
     private ItemStack pane(Material mat, Component name, List<Component> lore) {
         ItemStack it = new ItemStack(mat);
         it.editMeta(m -> {
             m.displayName(name);
             if (lore != null) m.lore(lore);
+            markMenu(m);
         });
         return it;
     }
@@ -1820,8 +1840,14 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     // ------------------------------------------------------------------ verkopen
 
     @EventHandler
+    public void onOpenTrack(org.bukkit.event.inventory.InventoryOpenEvent event) {
+        openType.put(event.getPlayer().getUniqueId(), event.getInventory().getType());
+    }
+
+    @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
+        openType.remove(player.getUniqueId());
         InventoryHolder holder = event.getInventory().getHolder();
         UUID id = player.getUniqueId();
 

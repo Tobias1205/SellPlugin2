@@ -19,8 +19,9 @@ small-caps: true
 price-scale: 1.0
 
 # Extra verhoging van ALLE prijzen (items, boeken, potions). 1.5 = 50% meer geld per verkoop.
+# Standaard 1.0: alleen farmbare items zijn duurder gemaakt in prices.yml.
 # Zet op 1.0 voor de oorspronkelijke prijzen. Geldt ook voor /worth en de lore.
-price-boost: 1.5
+price-boost: 1.0
 
 # Prijs voor items die nog niet in prices.yml staan (worden automatisch toegevoegd)
 fallback-price: 1.0

@@ -1,5 +1,5 @@
 name: SellPlugin
-version: 1.24.1
+version: 1.24.2
 main: nl.sell.SellPlugin
 api-version: '1.21'
 depend: [Vault]

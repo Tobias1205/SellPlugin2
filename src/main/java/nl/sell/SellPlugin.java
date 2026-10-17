@@ -552,7 +552,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 getLogger().warning("Kon prices.yml niet opslaan: " + e.getMessage());
             }
         }
-        priceScale = Math.max(0, getConfig().getDouble("price-scale", 1.0)) * Math.max(0, getConfig().getDouble("price-boost", 1.5));
+        priceScale = Math.max(0, getConfig().getDouble("price-scale", 1.0)) * Math.max(0, getConfig().getDouble("price-boost", 1.0));
         prices = map;
         loadSpecialPrices();
         getLogger().info(map.size() + " prijzen geladen (" + added

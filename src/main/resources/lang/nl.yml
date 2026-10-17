@@ -3,7 +3,7 @@
 # Kleine hoofdletters in de menu's worden automatisch toegepast (zie small-caps in config.yml).
 # <theme>...</theme> = kleurverloop uit config.yml (theme-colors). Verhoog lang-version niet zelf.
 
-lang-version: 5
+lang-version: 6
 
 categories:
   crops: "Gewassen"
@@ -62,6 +62,8 @@ messages:
   sold: "<theme>Je hebt {items} items verkocht voor </theme><#00AA00>${money}</#00AA00>"
   category-levelup: "<theme><bold>NIEUW NIVEAU!</bold> </theme><white>{category}</white> <theme>multiplier is nu x{progress}</theme>"
   no-permission: "<red>Geen permissie."
+  worth-toggle-on: "<theme>Worth-tekst staat weer <green>aan</green>.</theme>"
+  worth-toggle-off: "<theme>Worth-tekst staat nu <red>uit</red>. Typ /worthtoggle om hem weer aan te zetten.</theme>"
   reloaded: "<theme>Instellingen en prijzen herladen.</theme>"
   multipliers-header: "<theme>Jouw multipliers </theme><gray>(globaal x{global})"
   multiplier-line: "<gray>- {category}<gray>: <theme>x{multiplier} </theme><dark_gray>(niveau x{progress})"

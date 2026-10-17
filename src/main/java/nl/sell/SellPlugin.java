@@ -112,6 +112,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private final Map<UUID, double[]> soldTotals = new ConcurrentHashMap<>();      // per categorie
     private final Map<UUID, double[]> multiplierCache = new ConcurrentHashMap<>(); // per categorie
     private final Set<UUID> creative = ConcurrentHashMap.newKeySet();
+    private final Set<UUID> loreOff = ConcurrentHashMap.newKeySet();
     private final Map<UUID, ItemStack[]> stash = new ConcurrentHashMap<>();
     private final Set<UUID> switching = ConcurrentHashMap.newKeySet();
     private volatile boolean dirty = false;
@@ -204,6 +205,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         getServer().getPluginManager().registerEvents(this, this);
         if (getCommand("sell") != null) getCommand("sell").setExecutor(this);
         if (getCommand("worth") != null) getCommand("worth").setExecutor(this);
+        if (getCommand("worthtoggle") != null) getCommand("worthtoggle").setExecutor(this);
 
         setupWorthLore();
         SellPlaceholderExpansion.tryRegister(this);
@@ -399,6 +401,10 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     private void loadData() {
         soldTotals.clear();
         YamlConfiguration y = YamlConfiguration.loadConfiguration(dataFile);
+        loreOff.clear();
+        for (String k : y.getStringList("worth-off")) {
+            try { loreOff.add(UUID.fromString(k)); } catch (IllegalArgumentException ignored) { }
+        }
         ConfigurationSection s = y.getConfigurationSection("sold");
         if (s == null) return;
         List<Category> cats = categories;
@@ -462,6 +468,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         saveHistory();
         YamlConfiguration y = new YamlConfiguration();
         List<Category> cats = categories;
+        if (!loreOff.isEmpty()) y.set("worth-off", loreOff.stream().map(UUID::toString).toList());
         for (Map.Entry<UUID, double[]> e : soldTotals.entrySet()) {
             double[] arr = e.getValue();
             for (int i = 0; i < arr.length && i < cats.size(); i++) {
@@ -545,7 +552,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 getLogger().warning("Kon prices.yml niet opslaan: " + e.getMessage());
             }
         }
-        priceScale = Math.max(0, getConfig().getDouble("price-scale", 1.0));
+        priceScale = Math.max(0, getConfig().getDouble("price-scale", 1.0)) * Math.max(0, getConfig().getDouble("price-boost", 1.5));
         prices = map;
         loadSpecialPrices();
         getLogger().info(map.size() + " prijzen geladen (" + added
@@ -980,7 +987,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     }
 
     boolean shouldShowLore(UUID id) {
-        return multiplierCache.containsKey(id) && !creative.contains(id);
+        return multiplierCache.containsKey(id) && !creative.contains(id) && !loreOff.contains(id);
     }
 
     double displayUnitPrice(ItemStack item, UUID id) {
@@ -1589,7 +1596,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
         boolean changed = false;
         try {
             Map<String, Command> known = Bukkit.getCommandMap().getKnownCommands();
-            for (String name : List.of("sell", "worth")) {
+            for (String name : List.of("sell", "worth", "worthtoggle")) {
                 Command ours = getCommand(name);
                 if (ours == null) continue;
                 Command current = known.get(name);
@@ -1637,6 +1644,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
         if (cmd.getName().equalsIgnoreCase("worth")) return handleWorth(sender, args);
+        if (cmd.getName().equalsIgnoreCase("worthtoggle")) return handleWorthToggle(sender);
         String sub = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
         if (sub.equals("worth")) return handleWorth(sender, Arrays.copyOfRange(args, 1, args.length));
 
@@ -1734,6 +1742,18 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
                 || m == Material.SPLASH_POTION || m == Material.LINGERING_POTION || m == Material.TIPPED_ARROW;
     }
 
+    private boolean handleWorthToggle(CommandSender sender) {
+        if (!(sender instanceof Player p)) { sender.sendMessage("Alleen voor spelers."); return true; }
+        if (!p.hasPermission("sell.worth")) { p.sendMessage(msg("no-permission")); return true; }
+        UUID id = p.getUniqueId();
+        boolean nowOn = loreOff.remove(id);
+        if (!nowOn) loreOff.add(id);
+        dirty = true;
+        p.sendMessage(msg(nowOn ? "worth-toggle-on" : "worth-toggle-off"));
+        if (nowOn) resyncInventory(id); else p.updateInventory();
+        return true;
+    }
+
     private boolean handleWorth(CommandSender sender, String[] args) {
         if (!sender.hasPermission("sell.worth")) { sender.sendMessage(msg("no-permission")); return true; }
 
@@ -1810,6 +1830,7 @@ public class SellPlugin extends JavaPlugin implements Listener, TabExecutor {
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command cmd, @NotNull String label, @NotNull String[] args) {
+        if (cmd.getName().equalsIgnoreCase("worthtoggle")) return List.of();
         if ((cmd.getName().equalsIgnoreCase("worth") || (args.length == 2 && args[0].equalsIgnoreCase("worth")))
                 && sender.hasPermission("sell.worth")) {
             String typed = args[args.length - 1].toLowerCase(Locale.ROOT);

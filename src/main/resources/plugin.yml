@@ -1,5 +1,5 @@
 name: SellPlugin
-version: 1.23.1
+version: 1.24.1
 main: nl.sell.SellPlugin
 api-version: '1.21'
 depend: [Vault]
@@ -11,6 +11,9 @@ commands:
   worth:
     description: Bekijk de prijs van elk item
     usage: /worth [item|hand]
+  worthtoggle:
+    description: Zet de Worth-tekst bij items aan of uit voor jezelf
+    usage: /worthtoggle
 permissions:
   sell.*:
     description: Alle rechten van de plugin
